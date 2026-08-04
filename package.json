@@ -1,0 +1,79 @@
+{
+  "name": "@heirvault/crypto",
+  "version": "0.1.0",
+  "description": "Client-side live vault cryptography for HeirVault (AES-256-GCM, Argon2id, HKDF, BIP39 recovery)",
+  "license": "Apache-2.0",
+  "author": "TrueWear, LLC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TrueWear/heirvault-crypto.git"
+  },
+  "homepage": "https://github.com/TrueWear/heirvault-crypto#readme",
+  "bugs": {
+    "url": "https://github.com/TrueWear/heirvault-crypto/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./encoding": {
+      "types": "./dist/encoding.d.ts",
+      "import": "./dist/encoding.js"
+    },
+    "./aes-gcm": {
+      "types": "./dist/aes-gcm.d.ts",
+      "import": "./dist/aes-gcm.js"
+    },
+    "./argon2": {
+      "types": "./dist/argon2.d.ts",
+      "import": "./dist/argon2.js"
+    },
+    "./hkdf": {
+      "types": "./dist/hkdf.d.ts",
+      "import": "./dist/hkdf.js"
+    },
+    "./passphrase": {
+      "types": "./dist/passphrase.d.ts",
+      "import": "./dist/passphrase.js"
+    },
+    "./vault": {
+      "types": "./dist/vault.d.ts",
+      "import": "./dist/vault.js"
+    },
+    "./recovery": {
+      "types": "./dist/recovery.d.ts",
+      "import": "./dist/recovery.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm type-check && pnpm test && pnpm build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "@scure/bip39": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
