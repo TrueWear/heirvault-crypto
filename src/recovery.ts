@@ -28,11 +28,18 @@ export function generateRecoveryPhrase(
   return generateMnemonic(wordlist, strength)
 }
 
+/**
+ * Canonical form for KDF input: trimmed, lowercase, single spaces. Generated
+ * mnemonics are already canonical, so normalizing here keeps every historical
+ * wrap unlockable while making typed input (extra spaces, mixed case, line
+ * breaks from a printed kit) derive the same key.
+ */
+export function normalizeRecoveryPhrase(phrase: string): string {
+  return phrase.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 export function isValidRecoveryPhrase(phrase: string): boolean {
-  return validateMnemonic(
-    phrase.trim().toLowerCase().replace(/\s+/g, ' '),
-    wordlist
-  )
+  return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist)
 }
 
 export async function wrapDekWithRecoveryPhrase(
@@ -40,7 +47,7 @@ export async function wrapDekWithRecoveryPhrase(
   phrase: string
 ): Promise<KeyWrap> {
   const salt = randomSaltArgon2()
-  const kek = await deriveVaultKeyArgon2(phrase, salt)
+  const kek = await deriveVaultKeyArgon2(normalizeRecoveryPhrase(phrase), salt)
   const raw = await exportDekRaw(dek)
   const payload = await encryptUtf8(bytesToBase64(raw), kek)
   return {
@@ -62,7 +69,7 @@ export async function unlockDekWithRecovery(
     throw new Error('Unsupported recovery wrap KDF')
   }
   const salt = deserializeArgon2Salt(wrap.salt)
-  const kek = await deriveVaultKeyArgon2(phrase, salt)
+  const kek = await deriveVaultKeyArgon2(normalizeRecoveryPhrase(phrase), salt)
   const rawB64 = await decryptUtf8(
     { ciphertext: wrap.ciphertext, iv: wrap.iv },
     kek
