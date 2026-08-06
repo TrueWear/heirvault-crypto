@@ -1,0 +1,7 @@
+export { base64ToBytes, bytesToBase64, stringToUtf8Bytes, utf8BytesToString } from './encoding.js';
+export { AesGcmOptions, EncryptedPayload, decryptBinary, decryptUtf8, encryptBinary, encryptUtf8, vaultFieldAad } from './aes-gcm.js';
+export { ARGON2_ITERATIONS, ARGON2_KEY_LENGTH, ARGON2_MEMORY_KIB, ARGON2_PARALLELISM, deriveStretchedKeyBytes, deriveVaultKeyArgon2, deserializeArgon2Salt, randomSaltArgon2, serializeArgon2Salt } from './argon2.js';
+export { HKDF_INFO_AUTH, HKDF_INFO_DEVICE, HKDF_INFO_VAULT_KEK, deriveOpaquePassword, deriveVaultKek, deserializeKeyBytes, hkdfExpand, serializeKeyBytes } from './hkdf.js';
+export { PASSPHRASE_HARD_MAX_BYTES, PASSPHRASE_MAX_LENGTH, PASSPHRASE_MIN_LENGTH, PassphrasePolicyErrorCode, containsDisallowedPassphraseChars, getPassphrasePolicyError, isPassphrasePolicySatisfied, normalizePassphrase, passphrasePolicyErrorMessage, preparePassphraseForKdf } from './passphrase.js';
+export { KdfType, KeyWrap, PassphraseDerivedMaterial, VaultCryptoV2, VaultDek, assertSupportedArgon2Params, createVaultCryptoV2, decryptVaultSecret, deriveOpaquePasswordFromPassphrase, encryptVaultSecret, exportDekRaw, generateVaultDek, importDekFromRaw, parseKeyWrap, parseVaultCrypto, rewrapDekWithPassphrase, serializeKeyWrap, serializeVaultCryptoV2, unlockVaultCryptoV2, unwrapDekWithKek, unwrapDekWithSecret, wrapDekWithKek, wrapDekWithSecret } from './vault.js';
+export { generateRecoveryPhrase, isValidRecoveryPhrase, normalizeRecoveryPhrase, unlockDekWithRecovery, wrapDekWithRecoveryPhrase } from './recovery.js';
