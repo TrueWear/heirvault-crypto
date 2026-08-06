@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assertSupportedArgon2Params,
   createVaultCryptoV2,
   unlockVaultCryptoV2,
   rewrapDekWithPassphrase,
   encryptVaultSecret,
   decryptVaultSecret,
+  parseKeyWrap,
   parseVaultCrypto,
+  serializeKeyWrap,
   serializeVaultCryptoV2,
   wrapDekWithSecret,
   unwrapDekWithSecret,
 } from './vault'
+import {
+  ARGON2_ITERATIONS,
+  ARGON2_MEMORY_KIB,
+  ARGON2_PARALLELISM,
+} from './argon2'
 import {
   generateRecoveryPhrase,
   wrapDekWithRecoveryPhrase,
@@ -83,4 +91,42 @@ describe('vault crypto', () => {
       parseVaultCrypto(JSON.stringify({ salt: 'x', kdf: 'argon2id' }))
     ).toThrow(/Unsupported vault crypto/)
   })
+
+  it('rejects weakened Argon2 params on unlock', async () => {
+    const created = await createVaultCryptoV2('param-check-passphrase')
+    await expect(
+      unlockVaultCryptoV2('param-check-passphrase', {
+        ...created.vaultCrypto,
+        memory: 1024,
+      })
+    ).rejects.toThrow(/Unsupported Argon2 memory/)
+    expect(() =>
+      assertSupportedArgon2Params({
+        kdf: 'argon2id',
+        memory: ARGON2_MEMORY_KIB,
+        iterations: ARGON2_ITERATIONS,
+        parallelism: ARGON2_PARALLELISM,
+      })
+    ).not.toThrow()
+  }, 90_000)
+
+  it('validates KeyWrap JSON shape', async () => {
+    const created = await createVaultCryptoV2('wrap-parse-passphrase')
+    const wrap = await wrapDekWithSecret(created.dek, 'recipient-secret')
+    const ok = parseKeyWrap(serializeKeyWrap(wrap))
+    expect(ok.kdf).toBe('argon2id')
+    expect(ok.ciphertext).toBe(wrap.ciphertext)
+    expect(() => parseKeyWrap('{')).toThrow(/Invalid key wrap JSON/)
+    expect(() => parseKeyWrap(JSON.stringify({ kdf: 'argon2id' }))).toThrow(
+      /Invalid key wrap fields/
+    )
+    expect(() =>
+      parseKeyWrap(
+        JSON.stringify({
+          ...wrap,
+          kdf: 'pbkdf2',
+        })
+      )
+    ).toThrow(/Invalid key wrap fields/)
+  }, 90_000)
 })

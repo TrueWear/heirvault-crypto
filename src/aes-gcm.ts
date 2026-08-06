@@ -14,14 +14,39 @@ export type EncryptedPayload = {
   iv: string
 }
 
+export type AesGcmOptions = {
+  /**
+   * Additional authenticated data (context binding). Must match on decrypt.
+   * Bind vaultId|itemId|field|kind (or similar) so ciphertext cannot be swapped
+   * across rows/fields.
+   */
+  additionalData?: string | Uint8Array
+}
+
+function encodeAad(
+  additionalData: string | Uint8Array | undefined
+): ArrayBuffer | undefined {
+  if (additionalData === undefined) return undefined
+  if (typeof additionalData === 'string') {
+    return toArrayBuffer(new TextEncoder().encode(additionalData))
+  }
+  return toArrayBuffer(additionalData)
+}
+
 export async function encryptUtf8(
   plaintext: string,
-  key: CryptoKey
+  key: CryptoKey,
+  options?: AesGcmOptions
 ): Promise<EncryptedPayload> {
   const iv = new Uint8Array(IV_LENGTH)
   crypto.getRandomValues(iv)
+  const additionalData = encodeAad(options?.additionalData)
   const cipherBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(iv),
+      ...(additionalData ? { additionalData } : {}),
+    },
     key,
     new TextEncoder().encode(plaintext)
   )
@@ -33,12 +58,18 @@ export async function encryptUtf8(
 
 export async function decryptUtf8(
   payload: EncryptedPayload,
-  key: CryptoKey
+  key: CryptoKey,
+  options?: AesGcmOptions
 ): Promise<string> {
   const iv = base64ToBytes(payload.iv)
   const ciphertext = base64ToBytes(payload.ciphertext)
+  const additionalData = encodeAad(options?.additionalData)
   const plainBuffer = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(iv),
+      ...(additionalData ? { additionalData } : {}),
+    },
     key,
     toArrayBuffer(ciphertext)
   )
@@ -48,12 +79,18 @@ export async function decryptUtf8(
 /** Encrypt binary for storage upload; ciphertext is raw bytes, iv is base64. */
 export async function encryptBinary(
   plaintext: Uint8Array,
-  key: CryptoKey
+  key: CryptoKey,
+  options?: AesGcmOptions
 ): Promise<{ ciphertext: Uint8Array; iv: string }> {
   const iv = new Uint8Array(IV_LENGTH)
   crypto.getRandomValues(iv)
+  const additionalData = encodeAad(options?.additionalData)
   const cipherBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(iv),
+      ...(additionalData ? { additionalData } : {}),
+    },
     key,
     toArrayBuffer(plaintext)
   )
@@ -66,13 +103,34 @@ export async function encryptBinary(
 export async function decryptBinary(
   ciphertext: Uint8Array,
   ivBase64: string,
-  key: CryptoKey
+  key: CryptoKey,
+  options?: AesGcmOptions
 ): Promise<Uint8Array> {
   const iv = base64ToBytes(ivBase64)
+  const additionalData = encodeAad(options?.additionalData)
   const plainBuffer = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(iv),
+      ...(additionalData ? { additionalData } : {}),
+    },
     key,
     toArrayBuffer(ciphertext)
   )
   return new Uint8Array(plainBuffer)
+}
+
+/** Canonical AAD string for vault/handoff field binding. */
+export function vaultFieldAad(parts: {
+  vaultId: string
+  itemId: string
+  field: string
+  kind?: string
+}): string {
+  return [
+    parts.vaultId,
+    parts.itemId,
+    parts.field,
+    parts.kind ?? '',
+  ].join('|')
 }
