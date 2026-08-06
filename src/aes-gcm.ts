@@ -33,6 +33,13 @@ function encodeAad(
   return toArrayBuffer(additionalData)
 }
 
+/** All payloads are produced with a 96-bit IV; reject anything else early. */
+function assertIvLength(iv: Uint8Array): void {
+  if (iv.length !== IV_LENGTH) {
+    throw new Error(`Invalid AES-GCM IV length: ${iv.length}`)
+  }
+}
+
 export async function encryptUtf8(
   plaintext: string,
   key: CryptoKey,
@@ -62,6 +69,7 @@ export async function decryptUtf8(
   options?: AesGcmOptions
 ): Promise<string> {
   const iv = base64ToBytes(payload.iv)
+  assertIvLength(iv)
   const ciphertext = base64ToBytes(payload.ciphertext)
   const additionalData = encodeAad(options?.additionalData)
   const plainBuffer = await crypto.subtle.decrypt(
@@ -107,6 +115,7 @@ export async function decryptBinary(
   options?: AesGcmOptions
 ): Promise<Uint8Array> {
   const iv = base64ToBytes(ivBase64)
+  assertIvLength(iv)
   const additionalData = encodeAad(options?.additionalData)
   const plainBuffer = await crypto.subtle.decrypt(
     {
@@ -127,10 +136,5 @@ export function vaultFieldAad(parts: {
   field: string
   kind?: string
 }): string {
-  return [
-    parts.vaultId,
-    parts.itemId,
-    parts.field,
-    parts.kind ?? '',
-  ].join('|')
+  return [parts.vaultId, parts.itemId, parts.field, parts.kind ?? ''].join('|')
 }
