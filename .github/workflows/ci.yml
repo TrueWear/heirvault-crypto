@@ -20,4 +20,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm type-check
       - run: pnpm test
-      - run: pnpm build
+      # dist/ is committed so consumers install it as plain files with no
+      # build-script execution; fail if it drifts from src/.
+      - name: Build and verify committed dist is up to date
+        run: |
+          pnpm build
+          git add -A dist
+          git diff --cached --exit-code -- dist
