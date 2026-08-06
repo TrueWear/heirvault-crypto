@@ -10,6 +10,7 @@ export default defineConfig({
     'src/passphrase.ts',
     'src/vault.ts',
     'src/recovery.ts',
+    'src/vault-identity.ts',
   ],
   format: ['esm'],
   dts: true,

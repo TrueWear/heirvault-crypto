@@ -28,6 +28,7 @@ Requires a Web Crypto environment (`crypto.subtle` and `crypto.getRandomValues`)
 | Passphrase KDF | Argon2id (`m=65536` KiB, `t=3`, `p=4`, 32-byte output) via `@noble/hashes`; unlock rejects weakened stored params |
 | Domain separation | HKDF-SHA-256 with empty salt and fixed info strings |
 | Recovery | BIP39 mnemonic wrapping the vault DEK (`@scure/bip39`) |
+| Proof-of-DEK | ECDSA P-256 (`@noble/curves`); private key AES-GCM-wrapped under the vault DEK |
 
 HKDF info strings:
 
@@ -71,6 +72,29 @@ type KeyWrap = {
 `parseKeyWrap` validates this shape (rejects malformed JSON and unsupported KDFs).
 
 Callers that encrypt item fields should pass matching `additionalData` on encrypt and decrypt so ciphertext cannot be swapped across vault/item/field context. Helper: `vaultFieldAad({ vaultId, itemId, field, kind })`.
+
+## Proof-of-DEK (`vault-identity`)
+
+Privileged product operations (passphrase replace, kill/panic API keys, key-wrap rotation, handoff publish) require a cryptographic proof that the caller currently holds the vault DEK.
+
+At vault setup:
+
+1. `generateVaultIdentity(dek, { aad: vaultIdentityAad(vaultId) })` creates a P-256 keypair.
+2. The compressed public key (`dekPublicKey`) is stored on the vault row (write-once).
+3. The private key is AES-GCM-wrapped under the DEK (`encryptedVaultIdentityKey`) with AAD binding to the vault id.
+
+To prove possession:
+
+1. Server issues a single-use challenge (`challengeId`, `nonce`) bound to purpose + vault + session.
+2. Client builds the canonical message with `buildDekProofMessage({ purpose, vaultId, challengeId, nonce })`.
+3. Client signs with `signDekChallenge(dek, encryptedVaultIdentityKey, message, { aad })`.
+4. Server verifies with `verifyDekProof(dekPublicKey, message, signature)` (pure JS; same implementation in the browser and Convex).
+
+Canonical message format:
+
+```text
+heirvault-dek-proof-v1|<purpose>|<vaultId>|<challengeId>|<nonce>
+```
 
 ## Usage
 
