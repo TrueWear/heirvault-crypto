@@ -61,6 +61,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepare": "pnpm build",
     "prepublishOnly": "pnpm type-check && pnpm test && pnpm build"
   },
   "engines": {
