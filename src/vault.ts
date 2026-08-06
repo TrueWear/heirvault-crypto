@@ -133,11 +133,45 @@ export async function createVaultCryptoV2(
   }
 }
 
+/**
+ * Reject unknown or weakened Argon2 suites. Stored params must match the
+ * supported constants (advisory fields are not used for derivation yet).
+ */
+export function assertSupportedArgon2Params(cryptoBlob: {
+  kdf: string
+  memory?: number
+  iterations?: number
+  parallelism?: number
+}): void {
+  if (cryptoBlob.kdf !== 'argon2id') {
+    throw new Error('Unsupported vault crypto KDF')
+  }
+  if (
+    cryptoBlob.memory !== undefined &&
+    cryptoBlob.memory !== ARGON2_MEMORY_KIB
+  ) {
+    throw new Error('Unsupported Argon2 memory parameter')
+  }
+  if (
+    cryptoBlob.iterations !== undefined &&
+    cryptoBlob.iterations !== ARGON2_ITERATIONS
+  ) {
+    throw new Error('Unsupported Argon2 iterations parameter')
+  }
+  if (
+    cryptoBlob.parallelism !== undefined &&
+    cryptoBlob.parallelism !== ARGON2_PARALLELISM
+  ) {
+    throw new Error('Unsupported Argon2 parallelism parameter')
+  }
+}
+
 /** Unlock vault DEK from passphrase + stored crypto blob. */
 export async function unlockVaultCryptoV2(
   passphrase: string,
   cryptoBlob: VaultCryptoV2
 ): Promise<{ dek: VaultDek; opaquePassword: string; vaultKek: CryptoKey }> {
+  assertSupportedArgon2Params(cryptoBlob)
   const accountSalt = deserializeArgon2Salt(cryptoBlob.accountSalt)
   const stretchedKey = deriveStretchedKeyBytes(passphrase, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
@@ -211,8 +245,57 @@ export function serializeKeyWrap(wrap: KeyWrap): string {
   return JSON.stringify(wrap)
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
 export function parseKeyWrap(raw: string): KeyWrap {
-  return JSON.parse(raw) as KeyWrap
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('Invalid key wrap JSON')
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    Array.isArray(parsed)
+  ) {
+    throw new Error('Invalid key wrap shape')
+  }
+  const wrap = parsed as Record<string, unknown>
+  if (
+    !isNonEmptyString(wrap.salt) ||
+    typeof wrap.iterations !== 'number' ||
+    !Number.isFinite(wrap.iterations) ||
+    wrap.kdf !== 'argon2id' ||
+    !isNonEmptyString(wrap.ciphertext) ||
+    !isNonEmptyString(wrap.iv)
+  ) {
+    throw new Error('Invalid key wrap fields')
+  }
+  if (
+    wrap.memory !== undefined &&
+    (typeof wrap.memory !== 'number' || !Number.isFinite(wrap.memory))
+  ) {
+    throw new Error('Invalid key wrap memory')
+  }
+  if (
+    wrap.parallelism !== undefined &&
+    (typeof wrap.parallelism !== 'number' ||
+      !Number.isFinite(wrap.parallelism))
+  ) {
+    throw new Error('Invalid key wrap parallelism')
+  }
+  return {
+    salt: wrap.salt,
+    iterations: wrap.iterations,
+    kdf: 'argon2id',
+    memory: wrap.memory as number | undefined,
+    parallelism: wrap.parallelism as number | undefined,
+    ciphertext: wrap.ciphertext,
+    iv: wrap.iv,
+  }
 }
 
 /** Build a KeyWrap for recipient/device using Argon2id KEK from a secret. */

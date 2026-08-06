@@ -24,8 +24,8 @@ Requires a Web Crypto environment (`crypto.subtle` and `crypto.getRandomValues`)
 
 | Piece | Choice |
 | --- | --- |
-| Content encryption | AES-256-GCM (12-byte IV) |
-| Passphrase KDF | Argon2id (`m=65536` KiB, `t=3`, `p=4`, 32-byte output) via `@noble/hashes` |
+| Content encryption | AES-256-GCM (12-byte IV); optional AAD via `additionalData` / `vaultFieldAad` |
+| Passphrase KDF | Argon2id (`m=65536` KiB, `t=3`, `p=4`, 32-byte output) via `@noble/hashes`; unlock rejects weakened stored params |
 | Domain separation | HKDF-SHA-256 with empty salt and fixed info strings |
 | Recovery | BIP39 mnemonic wrapping the vault DEK (`@scure/bip39`) |
 
@@ -67,6 +67,10 @@ type KeyWrap = {
   iv: string
 }
 ```
+
+`parseKeyWrap` validates this shape (rejects malformed JSON and unsupported KDFs).
+
+Callers that encrypt item fields should pass matching `additionalData` on encrypt and decrypt so ciphertext cannot be swapped across vault/item/field context. Helper: `vaultFieldAad({ vaultId, itemId, field, kind })`.
 
 ## Usage
 
