@@ -480,17 +480,32 @@ async function wrapDekWithRecoveryPhrase(dek, phrase) {
     iv: payload.iv
   };
 }
-async function unlockDekWithRecovery(phrase, wrap) {
-  if (wrap.kdf !== "argon2id") {
-    throw new Error("Unsupported recovery wrap KDF");
-  }
-  const salt = deserializeArgon2Salt(wrap.salt);
-  const kek = await deriveVaultKeyArgon2(normalizeRecoveryPhrase(phrase), salt);
+async function unlockWithPhrase(phrase, wrap, salt) {
+  const kek = await deriveVaultKeyArgon2(phrase, salt);
   const rawB64 = await decryptUtf8(
     { ciphertext: wrap.ciphertext, iv: wrap.iv },
     kek
   );
   return importDekFromRaw(base64ToBytes(rawB64));
+}
+async function unlockDekWithRecovery(phrase, wrap) {
+  if (wrap.kdf !== "argon2id") {
+    throw new Error("Unsupported recovery wrap KDF");
+  }
+  const salt = deserializeArgon2Salt(wrap.salt);
+  const normalized = normalizeRecoveryPhrase(phrase);
+  try {
+    return await unlockWithPhrase(normalized, wrap, salt);
+  } catch (normalizedError) {
+    if (phrase === normalized) {
+      throw normalizedError;
+    }
+    try {
+      return await unlockWithPhrase(phrase, wrap, salt);
+    } catch {
+      throw normalizedError;
+    }
+  }
 }
 
 // src/vault-identity.ts
