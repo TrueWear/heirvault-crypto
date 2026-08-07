@@ -30,11 +30,19 @@ export type DekProofPurpose =
   | 'allow_replace'
   | 'mint_kill_key'
   | 'mint_panic_key'
+  | 'mint_checkin_key'
   | 'rotate_vault_crypto'
   | 'store_recovery_wrap'
   | 'publish_handoff'
   | 'mark_handoff_stale'
   | 'rotate_vault_identity'
+  | 'schedule_hard_kill'
+  | 'update_kill_pending_hours'
+  | 'duress_register'
+  | 'enable_duress'
+  | 'account_deletion'
+  | 'revoke_claim_link'
+  | 'update_vault_release_settings'
 
 /** Domain-separated AAD for the identity private-key wrap. */
 export function vaultIdentityAad(vaultId: string): string {
