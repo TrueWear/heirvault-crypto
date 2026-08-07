@@ -36,6 +36,27 @@ describe('vault-identity', () => {
     ).toBe(true)
   })
 
+  it('signs and verifies clear_lockdown purpose', async () => {
+    const dek = await aesKey()
+    const aad = vaultIdentityAad('vault_abc')
+    const identity = await generateVaultIdentity(dek, { aad })
+    const message = buildDekProofMessage({
+      purpose: 'clear_lockdown',
+      vaultId: 'vault_abc',
+      challengeId: 'chal_lockdown',
+      nonce: 'nonce_lockdown',
+    })
+    const signature = await signDekChallenge(
+      dek,
+      identity.encryptedVaultIdentityKey,
+      message,
+      { aad }
+    )
+    expect(
+      verifyDekProof(identity.dekPublicKey, message, signature)
+    ).toBe(true)
+  })
+
   it('rejects a tampered message', async () => {
     const dek = await aesKey()
     const aad = vaultIdentityAad('vault_abc')
