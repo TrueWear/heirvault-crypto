@@ -43,6 +43,7 @@ export type DekProofPurpose =
   | 'account_deletion'
   | 'revoke_claim_link'
   | 'update_vault_release_settings'
+  | 'clear_lockdown'
 
 /** Domain-separated AAD for the identity private-key wrap. */
 export function vaultIdentityAad(vaultId: string): string {

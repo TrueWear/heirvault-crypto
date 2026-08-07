@@ -1,6 +1,6 @@
 {
   "name": "@heirvault/crypto",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Client-side live vault cryptography for HeirVault (AES-256-GCM, Argon2id, HKDF, BIP39 recovery, proof-of-DEK)",
   "license": "Apache-2.0",
   "author": "TrueWear, LLC",
