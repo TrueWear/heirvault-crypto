@@ -492,6 +492,69 @@ async function unlockDekWithRecovery(phrase, wrap) {
   );
   return importDekFromRaw(base64ToBytes(rawB64));
 }
+
+// src/vault-identity.ts
+import { p256 } from "@noble/curves/p256";
+import { sha256 } from "@noble/hashes/sha256";
+function vaultIdentityAad(vaultId) {
+  return `heirvault-vault-identity-v1|${vaultId}`;
+}
+function buildDekProofMessage(parts) {
+  return [
+    "heirvault-dek-proof-v1",
+    parts.purpose,
+    parts.vaultId,
+    parts.challengeId,
+    parts.nonce
+  ].join("|");
+}
+function hashMessage(message) {
+  return sha256(new TextEncoder().encode(message));
+}
+async function generateVaultIdentity(dek, options) {
+  const privateKey = p256.utils.randomPrivateKey();
+  const publicKey = p256.getPublicKey(privateKey, true);
+  const encryptedVaultIdentityKey = await encryptUtf8(
+    bytesToBase64(privateKey),
+    dek,
+    { additionalData: options.aad }
+  );
+  return {
+    dekPublicKey: bytesToBase64(publicKey),
+    encryptedVaultIdentityKey
+  };
+}
+async function unwrapIdentityPrivateKey(dek, encryptedVaultIdentityKey, aad) {
+  const privB64 = await decryptUtf8(encryptedVaultIdentityKey, dek, {
+    additionalData: aad
+  });
+  const priv = base64ToBytes(privB64);
+  if (priv.length !== 32) {
+    throw new Error("Invalid vault identity private key");
+  }
+  return priv;
+}
+async function signDekChallenge(dek, encryptedVaultIdentityKey, message, options) {
+  const privateKey = await unwrapIdentityPrivateKey(
+    dek,
+    encryptedVaultIdentityKey,
+    options.aad
+  );
+  const digest = hashMessage(message);
+  const signature = p256.sign(digest, privateKey);
+  return bytesToBase64(signature.toCompactRawBytes());
+}
+function verifyDekProof(dekPublicKey, message, signature) {
+  try {
+    const pub = base64ToBytes(dekPublicKey);
+    const sig = base64ToBytes(signature);
+    if (pub.length !== 33 && pub.length !== 65) return false;
+    if (sig.length !== 64) return false;
+    return p256.verify(sig, hashMessage(message), pub);
+  } catch {
+    return false;
+  }
+}
 export {
   ARGON2_ITERATIONS,
   ARGON2_KEY_LENGTH,
@@ -505,6 +568,7 @@ export {
   PASSPHRASE_MIN_LENGTH,
   assertSupportedArgon2Params,
   base64ToBytes,
+  buildDekProofMessage,
   bytesToBase64,
   containsDisallowedPassphraseChars,
   createVaultCryptoV2,
@@ -524,6 +588,7 @@ export {
   exportDekRaw,
   generateRecoveryPhrase,
   generateVaultDek,
+  generateVaultIdentity,
   getPassphrasePolicyError,
   hkdfExpand,
   importDekFromRaw,
@@ -541,6 +606,7 @@ export {
   serializeKeyBytes,
   serializeKeyWrap,
   serializeVaultCryptoV2,
+  signDekChallenge,
   stringToUtf8Bytes,
   unlockDekWithRecovery,
   unlockVaultCryptoV2,
@@ -548,6 +614,8 @@ export {
   unwrapDekWithSecret,
   utf8BytesToString,
   vaultFieldAad,
+  vaultIdentityAad,
+  verifyDekProof,
   wrapDekWithKek,
   wrapDekWithRecoveryPhrase,
   wrapDekWithSecret

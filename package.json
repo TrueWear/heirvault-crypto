@@ -1,7 +1,7 @@
 {
   "name": "@heirvault/crypto",
-  "version": "0.1.0",
-  "description": "Client-side live vault cryptography for HeirVault (AES-256-GCM, Argon2id, HKDF, BIP39 recovery)",
+  "version": "0.2.0",
+  "description": "Client-side live vault cryptography for HeirVault (AES-256-GCM, Argon2id, HKDF, BIP39 recovery, proof-of-DEK)",
   "license": "Apache-2.0",
   "author": "TrueWear, LLC",
   "repository": {
@@ -48,6 +48,10 @@
     "./recovery": {
       "types": "./dist/recovery.d.ts",
       "import": "./dist/recovery.js"
+    },
+    "./vault-identity": {
+      "types": "./dist/vault-identity.d.ts",
+      "import": "./dist/vault-identity.js"
     }
   },
   "files": [
@@ -67,6 +71,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@scure/bip39": "^2.2.0"
   },
