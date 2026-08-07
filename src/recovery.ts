@@ -61,6 +61,19 @@ export async function wrapDekWithRecoveryPhrase(
   }
 }
 
+async function unlockWithPhrase(
+  phrase: string,
+  wrap: KeyWrap,
+  salt: Uint8Array
+): Promise<VaultDek> {
+  const kek = await deriveVaultKeyArgon2(phrase, salt)
+  const rawB64 = await decryptUtf8(
+    { ciphertext: wrap.ciphertext, iv: wrap.iv },
+    kek
+  )
+  return importDekFromRaw(base64ToBytes(rawB64))
+}
+
 export async function unlockDekWithRecovery(
   phrase: string,
   wrap: KeyWrap
@@ -69,10 +82,19 @@ export async function unlockDekWithRecovery(
     throw new Error('Unsupported recovery wrap KDF')
   }
   const salt = deserializeArgon2Salt(wrap.salt)
-  const kek = await deriveVaultKeyArgon2(normalizeRecoveryPhrase(phrase), salt)
-  const rawB64 = await decryptUtf8(
-    { ciphertext: wrap.ciphertext, iv: wrap.iv },
-    kek
-  )
-  return importDekFromRaw(base64ToBytes(rawB64))
+  const normalized = normalizeRecoveryPhrase(phrase)
+  try {
+    return await unlockWithPhrase(normalized, wrap, salt)
+  } catch (normalizedError) {
+    // Pre-normalization wraps derived the KEK from the raw typed phrase.
+    // Retry once so those kits remain unlockable after canonicalize-on-unlock.
+    if (phrase === normalized) {
+      throw normalizedError
+    }
+    try {
+      return await unlockWithPhrase(phrase, wrap, salt)
+    } catch {
+      throw normalizedError
+    }
+  }
 }
