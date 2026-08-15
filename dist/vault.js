@@ -218,12 +218,12 @@ async function importDekFromRaw(raw, extractable = true) {
     ["encrypt", "decrypt"]
   );
 }
-async function wrapDekWithKek(dek, kek) {
+async function wrapDekWithKek(dek, kek, options) {
   const raw = await exportDekRaw(dek);
-  return encryptUtf8(bytesToBase64(raw), kek);
+  return encryptUtf8(bytesToBase64(raw), kek, options);
 }
-async function unwrapDekWithKek(wrap, kek) {
-  const rawB64 = await decryptUtf8(wrap, kek);
+async function unwrapDekWithKek(wrap, kek, options) {
+  const rawB64 = await decryptUtf8(wrap, kek, options);
   return importDekFromRaw(base64ToBytes(rawB64));
 }
 async function createVaultCryptoV2(passphrase, options) {

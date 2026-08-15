@@ -28,8 +28,12 @@ type VaultDek = CryptoKey;
 declare function generateVaultDek(): Promise<VaultDek>;
 declare function exportDekRaw(dek: VaultDek): Promise<Uint8Array>;
 declare function importDekFromRaw(raw: Uint8Array, extractable?: boolean): Promise<VaultDek>;
-declare function wrapDekWithKek(dek: VaultDek, kek: CryptoKey): Promise<EncryptedPayload>;
-declare function unwrapDekWithKek(wrap: EncryptedPayload, kek: CryptoKey): Promise<VaultDek>;
+declare function wrapDekWithKek(dek: VaultDek, kek: CryptoKey, options?: {
+    additionalData?: string;
+}): Promise<EncryptedPayload>;
+declare function unwrapDekWithKek(wrap: EncryptedPayload, kek: CryptoKey, options?: {
+    additionalData?: string;
+}): Promise<VaultDek>;
 type PassphraseDerivedMaterial = {
     accountSalt: Uint8Array;
     stretchedKey: Uint8Array;

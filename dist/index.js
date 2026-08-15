@@ -126,6 +126,9 @@ function vaultFieldAad(parts) {
     parts.kind ?? ""
   ]);
 }
+function deviceWrapAad(parts) {
+  return JSON.stringify([parts.vaultId, parts.credentialId]);
+}
 
 // src/argon2.ts
 import { argon2id } from "@noble/hashes/argon2";
@@ -298,12 +301,12 @@ async function importDekFromRaw(raw, extractable = true) {
     ["encrypt", "decrypt"]
   );
 }
-async function wrapDekWithKek(dek, kek) {
+async function wrapDekWithKek(dek, kek, options) {
   const raw = await exportDekRaw(dek);
-  return encryptUtf8(bytesToBase64(raw), kek);
+  return encryptUtf8(bytesToBase64(raw), kek, options);
 }
-async function unwrapDekWithKek(wrap, kek) {
-  const rawB64 = await decryptUtf8(wrap, kek);
+async function unwrapDekWithKek(wrap, kek, options) {
+  const rawB64 = await decryptUtf8(wrap, kek, options);
   return importDekFromRaw(base64ToBytes(rawB64));
 }
 async function createVaultCryptoV2(passphrase, options) {
@@ -608,6 +611,7 @@ export {
   deriveVaultKeyArgon2,
   deserializeArgon2Salt,
   deserializeKeyBytes,
+  deviceWrapAad,
   encryptBinary,
   encryptUtf8,
   encryptVaultSecret,

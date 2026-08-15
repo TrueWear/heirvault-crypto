@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decryptBinary,
   decryptUtf8,
+  deviceWrapAad,
   encryptBinary,
   encryptUtf8,
   vaultFieldAad,
@@ -84,6 +85,25 @@ describe('aes-gcm', () => {
       ivs.add(payload.iv)
     }
     expect(ivs.size).toBe(200)
+  })
+
+  it('binds device wraps to their (vaultId, credentialId) via deviceWrapAad', async () => {
+    const key = await aesKey()
+    const aad = deviceWrapAad({ vaultId: 'vault_1', credentialId: 'cred_1' })
+    const payload = await encryptUtf8('wrapped-dek', key, {
+      additionalData: aad,
+    })
+    expect(await decryptUtf8(payload, key, { additionalData: aad })).toBe(
+      'wrapped-dek'
+    )
+    await expect(
+      decryptUtf8(payload, key, {
+        additionalData: deviceWrapAad({
+          vaultId: 'vault_2',
+          credentialId: 'cred_1',
+        }),
+      })
+    ).rejects.toThrow()
   })
 
   it('does not collide vaultFieldAad across tuples that would collide under a naive delimiter join', () => {
