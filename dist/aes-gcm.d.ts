@@ -18,7 +18,13 @@ declare function encryptBinary(plaintext: Uint8Array, key: CryptoKey, options?: 
     iv: string;
 }>;
 declare function decryptBinary(ciphertext: Uint8Array, ivBase64: string, key: CryptoKey, options?: AesGcmOptions): Promise<Uint8Array>;
-/** Canonical AAD string for vault/handoff field binding. */
+/**
+ * Canonical AAD string for vault/handoff field binding.
+ *
+ * Encoded as JSON rather than delimiter-joined so distinct (vaultId, itemId,
+ * field, kind) tuples can never collide onto the same AAD string (e.g. a
+ * naive `join('|')` lets field="x|y" collide with field="x", kind="y").
+ */
 declare function vaultFieldAad(parts: {
     vaultId: string;
     itemId: string;

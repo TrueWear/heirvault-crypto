@@ -75,4 +75,32 @@ describe('aes-gcm', () => {
       decryptBinary(sealed.ciphertext, sealed.iv, key)
     ).rejects.toThrow()
   })
+
+  it('generates a fresh IV on every encryption under the same key', async () => {
+    const key = await aesKey()
+    const ivs = new Set<string>()
+    for (let i = 0; i < 200; i++) {
+      const payload = await encryptUtf8('same plaintext', key)
+      ivs.add(payload.iv)
+    }
+    expect(ivs.size).toBe(200)
+  })
+
+  it('does not collide vaultFieldAad across tuples that would collide under a naive delimiter join', () => {
+    // Under a raw `[a, b, c, d].join('|')` these two tuples both produce
+    // "vault1|itemA|x|y|z" — the encoding must keep them distinct.
+    const a = vaultFieldAad({
+      vaultId: 'vault1',
+      itemId: 'itemA',
+      field: 'x|y',
+      kind: 'z',
+    })
+    const b = vaultFieldAad({
+      vaultId: 'vault1',
+      itemId: 'itemA',
+      field: 'x',
+      kind: 'y|z',
+    })
+    expect(a).not.toBe(b)
+  })
 })

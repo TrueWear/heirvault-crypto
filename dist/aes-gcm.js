@@ -9,8 +9,12 @@ function bytesToBase64(bytes) {
   }
   return btoa(binary);
 }
+var BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 function base64ToBytes(base64) {
   if (typeof Buffer !== "undefined") {
+    if (base64.length % 4 !== 0 || !BASE64_PATTERN.test(base64)) {
+      throw new Error("Invalid base64 input");
+    }
     return new Uint8Array(Buffer.from(base64, "base64"));
   }
   const binary = atob(base64);
@@ -109,7 +113,12 @@ async function decryptBinary(ciphertext, ivBase64, key, options) {
   return new Uint8Array(plainBuffer);
 }
 function vaultFieldAad(parts) {
-  return [parts.vaultId, parts.itemId, parts.field, parts.kind ?? ""].join("|");
+  return JSON.stringify([
+    parts.vaultId,
+    parts.itemId,
+    parts.field,
+    parts.kind ?? ""
+  ]);
 }
 export {
   decryptBinary,

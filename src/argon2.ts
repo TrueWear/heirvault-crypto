@@ -6,6 +6,7 @@ export const ARGON2_MEMORY_KIB = 65536
 export const ARGON2_ITERATIONS = 3
 export const ARGON2_PARALLELISM = 4
 export const ARGON2_KEY_LENGTH = 32
+export const ARGON2_SALT_LENGTH = 16
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(
@@ -57,5 +58,9 @@ export function serializeArgon2Salt(salt: Uint8Array): string {
 }
 
 export function deserializeArgon2Salt(encoded: string): Uint8Array {
-  return base64ToBytes(encoded)
+  const salt = base64ToBytes(encoded)
+  if (salt.length !== ARGON2_SALT_LENGTH) {
+    throw new Error(`Invalid Argon2 salt length: ${salt.length}`)
+  }
+  return salt
 }

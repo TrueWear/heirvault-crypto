@@ -129,12 +129,23 @@ export async function decryptBinary(
   return new Uint8Array(plainBuffer)
 }
 
-/** Canonical AAD string for vault/handoff field binding. */
+/**
+ * Canonical AAD string for vault/handoff field binding.
+ *
+ * Encoded as JSON rather than delimiter-joined so distinct (vaultId, itemId,
+ * field, kind) tuples can never collide onto the same AAD string (e.g. a
+ * naive `join('|')` lets field="x|y" collide with field="x", kind="y").
+ */
 export function vaultFieldAad(parts: {
   vaultId: string
   itemId: string
   field: string
   kind?: string
 }): string {
-  return [parts.vaultId, parts.itemId, parts.field, parts.kind ?? ''].join('|')
+  return JSON.stringify([
+    parts.vaultId,
+    parts.itemId,
+    parts.field,
+    parts.kind ?? '',
+  ])
 }

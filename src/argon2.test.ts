@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { bytesToBase64 } from './encoding'
 import {
   ARGON2_ITERATIONS,
   ARGON2_KEY_LENGTH,
@@ -40,4 +41,13 @@ describe('argon2', () => {
     const b = deriveStretchedKeyBytes('beta-passphrase', salt)
     expect(Array.from(a)).not.toEqual(Array.from(b))
   }, 90_000)
+
+  it('rejects a deserialized salt of the wrong length', () => {
+    expect(() => deserializeArgon2Salt(bytesToBase64(new Uint8Array(8)))).toThrow(
+      'Invalid Argon2 salt length'
+    )
+    expect(() =>
+      deserializeArgon2Salt(bytesToBase64(new Uint8Array(32)))
+    ).toThrow('Invalid Argon2 salt length')
+  })
 })

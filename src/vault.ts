@@ -321,9 +321,7 @@ export async function unwrapDekWithSecret(
   wrap: KeyWrap,
   secret: string
 ): Promise<VaultDek> {
-  if (wrap.kdf !== 'argon2id') {
-    throw new Error('Unsupported key wrap KDF')
-  }
+  assertSupportedArgon2Params(wrap)
   const kek = await deriveVaultKeyArgon2(
     secret,
     deserializeArgon2Salt(wrap.salt)

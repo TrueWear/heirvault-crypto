@@ -12,6 +12,7 @@ import {
 } from './argon2'
 import { bytesToBase64, base64ToBytes } from './encoding'
 import {
+  assertSupportedArgon2Params,
   exportDekRaw,
   importDekFromRaw,
   type KeyWrap,
@@ -78,9 +79,7 @@ export async function unlockDekWithRecovery(
   phrase: string,
   wrap: KeyWrap
 ): Promise<VaultDek> {
-  if (wrap.kdf !== 'argon2id') {
-    throw new Error('Unsupported recovery wrap KDF')
-  }
+  assertSupportedArgon2Params(wrap)
   const salt = deserializeArgon2Salt(wrap.salt)
   const normalized = normalizeRecoveryPhrase(phrase)
   try {

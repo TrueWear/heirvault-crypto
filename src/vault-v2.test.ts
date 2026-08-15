@@ -110,6 +110,23 @@ describe('vault crypto', () => {
     ).not.toThrow()
   }, 90_000)
 
+  it('rejects weakened Argon2 params on recovery unlock', async () => {
+    const created = await createVaultCryptoV2('recovery-param-check')
+    const phrase = generateRecoveryPhrase(12)
+    const wrap = await wrapDekWithRecoveryPhrase(created.dek, phrase)
+    await expect(
+      unlockDekWithRecovery(phrase, { ...wrap, memory: 1024 })
+    ).rejects.toThrow(/Unsupported Argon2 memory/)
+  }, 90_000)
+
+  it('rejects weakened Argon2 params on recipient-wrap unlock', async () => {
+    const created = await createVaultCryptoV2('recipient-param-check')
+    const wrap = await wrapDekWithSecret(created.dek, 'recipient-secret')
+    await expect(
+      unwrapDekWithSecret({ ...wrap, memory: 1024 }, 'recipient-secret')
+    ).rejects.toThrow(/Unsupported Argon2 memory/)
+  }, 90_000)
+
   it('validates KeyWrap JSON shape', async () => {
     const created = await createVaultCryptoV2('wrap-parse-passphrase')
     const wrap = await wrapDekWithSecret(created.dek, 'recipient-secret')

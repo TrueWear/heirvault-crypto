@@ -12,8 +12,12 @@ function bytesToBase64(bytes) {
   }
   return btoa(binary);
 }
+var BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 function base64ToBytes(base64) {
   if (typeof Buffer !== "undefined") {
+    if (base64.length % 4 !== 0 || !BASE64_PATTERN.test(base64)) {
+      throw new Error("Invalid base64 input");
+    }
     return new Uint8Array(Buffer.from(base64, "base64"));
   }
   const binary = atob(base64);
@@ -43,6 +47,7 @@ var ARGON2_MEMORY_KIB = 65536;
 var ARGON2_ITERATIONS = 3;
 var ARGON2_PARALLELISM = 4;
 var ARGON2_KEY_LENGTH = 32;
+var ARGON2_SALT_LENGTH = 16;
 function toArrayBuffer(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -81,13 +86,18 @@ function serializeArgon2Salt(salt) {
   return bytesToBase64(salt);
 }
 function deserializeArgon2Salt(encoded) {
-  return base64ToBytes(encoded);
+  const salt = base64ToBytes(encoded);
+  if (salt.length !== ARGON2_SALT_LENGTH) {
+    throw new Error(`Invalid Argon2 salt length: ${salt.length}`);
+  }
+  return salt;
 }
 export {
   ARGON2_ITERATIONS,
   ARGON2_KEY_LENGTH,
   ARGON2_MEMORY_KIB,
   ARGON2_PARALLELISM,
+  ARGON2_SALT_LENGTH,
   deriveStretchedKeyBytes,
   deriveVaultKeyArgon2,
   deserializeArgon2Salt,

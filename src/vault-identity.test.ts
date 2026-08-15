@@ -134,6 +134,25 @@ describe('vault-identity', () => {
     ).rejects.toThrow()
   })
 
+  it('does not collide messages across tuples that would collide under a naive delimiter join', () => {
+    // Under a raw join('|') both tuples produce the identical tail
+    // "...|chal|1|2" (challengeId="chal|1", nonce="2" vs
+    // challengeId="chal", nonce="1|2") — the encoding must keep them distinct.
+    const a = buildDekProofMessage({
+      purpose: 'allow_replace',
+      vaultId: 'vault1',
+      challengeId: 'chal|1',
+      nonce: '2',
+    })
+    const b = buildDekProofMessage({
+      purpose: 'allow_replace',
+      vaultId: 'vault1',
+      challengeId: 'chal',
+      nonce: '1|2',
+    })
+    expect(a).not.toBe(b)
+  })
+
   it('rejects malformed signature/public key without throwing', () => {
     expect(verifyDekProof('not-base64!!!', 'msg', 'also-bad')).toBe(false)
     expect(verifyDekProof(bytesToFakeB64(new Uint8Array(16)), 'msg', bytesToFakeB64(new Uint8Array(64)))).toBe(
