@@ -206,7 +206,7 @@ async function deriveVaultKeyArgon2(password, salt) {
   );
 }
 function randomSaltArgon2() {
-  const salt = new Uint8Array(16);
+  const salt = new Uint8Array(ARGON2_SALT_LENGTH);
   crypto.getRandomValues(salt);
   return salt;
 }
