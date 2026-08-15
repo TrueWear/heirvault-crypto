@@ -120,9 +120,13 @@ function vaultFieldAad(parts) {
     parts.kind ?? ""
   ]);
 }
+function deviceWrapAad(parts) {
+  return JSON.stringify([parts.vaultId, parts.credentialId]);
+}
 export {
   decryptBinary,
   decryptUtf8,
+  deviceWrapAad,
   encryptBinary,
   encryptUtf8,
   vaultFieldAad

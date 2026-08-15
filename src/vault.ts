@@ -75,17 +75,19 @@ export async function importDekFromRaw(
 
 export async function wrapDekWithKek(
   dek: VaultDek,
-  kek: CryptoKey
+  kek: CryptoKey,
+  options?: { additionalData?: string }
 ): Promise<EncryptedPayload> {
   const raw = await exportDekRaw(dek)
-  return encryptUtf8(bytesToBase64(raw), kek)
+  return encryptUtf8(bytesToBase64(raw), kek, options)
 }
 
 export async function unwrapDekWithKek(
   wrap: EncryptedPayload,
-  kek: CryptoKey
+  kek: CryptoKey,
+  options?: { additionalData?: string }
 ): Promise<VaultDek> {
-  const rawB64 = await decryptUtf8(wrap, kek)
+  const rawB64 = await decryptUtf8(wrap, kek, options)
   return importDekFromRaw(base64ToBytes(rawB64))
 }
 

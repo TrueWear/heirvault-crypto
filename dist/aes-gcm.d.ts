@@ -31,5 +31,16 @@ declare function vaultFieldAad(parts: {
     field: string;
     kind?: string;
 }): string;
+/**
+ * Canonical AAD string binding a passkey device-wrapped DEK to the exact
+ * (vaultId, credentialId) it was wrapped for. `vaultId` already belongs to
+ * exactly one user, so this alone is a complete, unique binding — a wrap
+ * can never be decrypted against the wrong vault or credential context even
+ * if a row were ever mismatched at the application layer.
+ */
+declare function deviceWrapAad(parts: {
+    vaultId: string;
+    credentialId: string;
+}): string;
 
-export { type AesGcmOptions, type EncryptedPayload, decryptBinary, decryptUtf8, encryptBinary, encryptUtf8, vaultFieldAad };
+export { type AesGcmOptions, type EncryptedPayload, decryptBinary, decryptUtf8, deviceWrapAad, encryptBinary, encryptUtf8, vaultFieldAad };

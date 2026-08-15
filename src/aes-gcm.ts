@@ -149,3 +149,17 @@ export function vaultFieldAad(parts: {
     parts.kind ?? '',
   ])
 }
+
+/**
+ * Canonical AAD string binding a passkey device-wrapped DEK to the exact
+ * (vaultId, credentialId) it was wrapped for. `vaultId` already belongs to
+ * exactly one user, so this alone is a complete, unique binding — a wrap
+ * can never be decrypted against the wrong vault or credential context even
+ * if a row were ever mismatched at the application layer.
+ */
+export function deviceWrapAad(parts: {
+  vaultId: string
+  credentialId: string
+}): string {
+  return JSON.stringify([parts.vaultId, parts.credentialId])
+}
