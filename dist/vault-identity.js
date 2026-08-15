@@ -13,8 +13,12 @@ function bytesToBase64(bytes) {
   }
   return btoa(binary);
 }
+var BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 function base64ToBytes(base64) {
   if (typeof Buffer !== "undefined") {
+    if (base64.length % 4 !== 0 || !BASE64_PATTERN.test(base64)) {
+      throw new Error("Invalid base64 input");
+    }
     return new Uint8Array(Buffer.from(base64, "base64"));
   }
   const binary = atob(base64);
@@ -85,13 +89,13 @@ function vaultIdentityAad(vaultId) {
   return `heirvault-vault-identity-v1|${vaultId}`;
 }
 function buildDekProofMessage(parts) {
-  return [
+  return JSON.stringify([
     "heirvault-dek-proof-v1",
     parts.purpose,
     parts.vaultId,
     parts.challengeId,
     parts.nonce
-  ].join("|");
+  ]);
 }
 function hashMessage(message) {
   return sha256(new TextEncoder().encode(message));

@@ -18,4 +18,12 @@ describe('encoding', () => {
     const text = 'HeirVault — café 🔐'
     expect(utf8BytesToString(stringToUtf8Bytes(text))).toBe(text)
   })
+
+  it('rejects base64 with an invalid length', () => {
+    expect(() => base64ToBytes('abc')).toThrow('Invalid base64 input')
+  })
+
+  it('rejects base64 with invalid characters', () => {
+    expect(() => base64ToBytes('abc!@#$')).toThrow('Invalid base64 input')
+  })
 })

@@ -9,8 +9,12 @@ function bytesToBase64(bytes) {
   }
   return btoa(binary);
 }
+var BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 function base64ToBytes(base64) {
   if (typeof Buffer !== "undefined") {
+    if (base64.length % 4 !== 0 || !BASE64_PATTERN.test(base64)) {
+      throw new Error("Invalid base64 input");
+    }
     return new Uint8Array(Buffer.from(base64, "base64"));
   }
   const binary = atob(base64);
@@ -115,7 +119,12 @@ async function decryptBinary(ciphertext, ivBase64, key, options) {
   return new Uint8Array(plainBuffer);
 }
 function vaultFieldAad(parts) {
-  return [parts.vaultId, parts.itemId, parts.field, parts.kind ?? ""].join("|");
+  return JSON.stringify([
+    parts.vaultId,
+    parts.itemId,
+    parts.field,
+    parts.kind ?? ""
+  ]);
 }
 
 // src/argon2.ts
@@ -166,6 +175,7 @@ var ARGON2_MEMORY_KIB = 65536;
 var ARGON2_ITERATIONS = 3;
 var ARGON2_PARALLELISM = 4;
 var ARGON2_KEY_LENGTH = 32;
+var ARGON2_SALT_LENGTH = 16;
 function toArrayBuffer2(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -204,7 +214,11 @@ function serializeArgon2Salt(salt) {
   return bytesToBase64(salt);
 }
 function deserializeArgon2Salt(encoded) {
-  return base64ToBytes(encoded);
+  const salt = base64ToBytes(encoded);
+  if (salt.length !== ARGON2_SALT_LENGTH) {
+    throw new Error(`Invalid Argon2 salt length: ${salt.length}`);
+  }
+  return salt;
 }
 
 // src/hkdf.ts
@@ -436,9 +450,7 @@ async function wrapDekWithSecret(dek, secret) {
   };
 }
 async function unwrapDekWithSecret(wrap, secret) {
-  if (wrap.kdf !== "argon2id") {
-    throw new Error("Unsupported key wrap KDF");
-  }
+  assertSupportedArgon2Params(wrap);
   const kek = await deriveVaultKeyArgon2(
     secret,
     deserializeArgon2Salt(wrap.salt)
@@ -489,9 +501,7 @@ async function unlockWithPhrase(phrase, wrap, salt) {
   return importDekFromRaw(base64ToBytes(rawB64));
 }
 async function unlockDekWithRecovery(phrase, wrap) {
-  if (wrap.kdf !== "argon2id") {
-    throw new Error("Unsupported recovery wrap KDF");
-  }
+  assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
@@ -515,13 +525,13 @@ function vaultIdentityAad(vaultId) {
   return `heirvault-vault-identity-v1|${vaultId}`;
 }
 function buildDekProofMessage(parts) {
-  return [
+  return JSON.stringify([
     "heirvault-dek-proof-v1",
     parts.purpose,
     parts.vaultId,
     parts.challengeId,
     parts.nonce
-  ].join("|");
+  ]);
 }
 function hashMessage(message) {
   return sha256(new TextEncoder().encode(message));
@@ -575,6 +585,7 @@ export {
   ARGON2_KEY_LENGTH,
   ARGON2_MEMORY_KIB,
   ARGON2_PARALLELISM,
+  ARGON2_SALT_LENGTH,
   HKDF_INFO_AUTH,
   HKDF_INFO_DEVICE,
   HKDF_INFO_VAULT_KEK,

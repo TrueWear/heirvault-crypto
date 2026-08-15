@@ -13,8 +13,12 @@ function bytesToBase64(bytes) {
   }
   return btoa(binary);
 }
+var BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 function base64ToBytes(base64) {
   if (typeof Buffer !== "undefined") {
+    if (base64.length % 4 !== 0 || !BASE64_PATTERN.test(base64)) {
+      throw new Error("Invalid base64 input");
+    }
     return new Uint8Array(Buffer.from(base64, "base64"));
   }
   const binary = atob(base64);
@@ -102,6 +106,7 @@ var ARGON2_MEMORY_KIB = 65536;
 var ARGON2_ITERATIONS = 3;
 var ARGON2_PARALLELISM = 4;
 var ARGON2_KEY_LENGTH = 32;
+var ARGON2_SALT_LENGTH = 16;
 function toArrayBuffer2(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -140,7 +145,11 @@ function serializeArgon2Salt(salt) {
   return bytesToBase64(salt);
 }
 function deserializeArgon2Salt(encoded) {
-  return base64ToBytes(encoded);
+  const salt = base64ToBytes(encoded);
+  if (salt.length !== ARGON2_SALT_LENGTH) {
+    throw new Error(`Invalid Argon2 salt length: ${salt.length}`);
+  }
+  return salt;
 }
 
 // src/vault.ts
@@ -162,6 +171,20 @@ async function importDekFromRaw(raw, extractable = true) {
     extractable,
     ["encrypt", "decrypt"]
   );
+}
+function assertSupportedArgon2Params(cryptoBlob) {
+  if (cryptoBlob.kdf !== "argon2id") {
+    throw new Error("Unsupported vault crypto KDF");
+  }
+  if (cryptoBlob.memory !== void 0 && cryptoBlob.memory !== ARGON2_MEMORY_KIB) {
+    throw new Error("Unsupported Argon2 memory parameter");
+  }
+  if (cryptoBlob.iterations !== void 0 && cryptoBlob.iterations !== ARGON2_ITERATIONS) {
+    throw new Error("Unsupported Argon2 iterations parameter");
+  }
+  if (cryptoBlob.parallelism !== void 0 && cryptoBlob.parallelism !== ARGON2_PARALLELISM) {
+    throw new Error("Unsupported Argon2 parallelism parameter");
+  }
 }
 
 // src/recovery.ts
@@ -199,9 +222,7 @@ async function unlockWithPhrase(phrase, wrap, salt) {
   return importDekFromRaw(base64ToBytes(rawB64));
 }
 async function unlockDekWithRecovery(phrase, wrap) {
-  if (wrap.kdf !== "argon2id") {
-    throw new Error("Unsupported recovery wrap KDF");
-  }
+  assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
