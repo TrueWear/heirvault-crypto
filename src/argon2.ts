@@ -48,7 +48,7 @@ export async function deriveVaultKeyArgon2(
 }
 
 export function randomSaltArgon2(): Uint8Array {
-  const salt = new Uint8Array(16)
+  const salt = new Uint8Array(ARGON2_SALT_LENGTH)
   crypto.getRandomValues(salt)
   return salt
 }
