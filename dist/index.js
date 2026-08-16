@@ -446,6 +446,9 @@ function serializeKeyWrap(wrap) {
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
+function isPositiveInteger(value) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
 function parseKeyWrap(raw) {
   let parsed;
   try {
@@ -457,13 +460,13 @@ function parseKeyWrap(raw) {
     throw new Error("Invalid key wrap shape");
   }
   const wrap = parsed;
-  if (!isNonEmptyString(wrap.salt) || typeof wrap.iterations !== "number" || !Number.isFinite(wrap.iterations) || wrap.kdf !== "argon2id" || !isNonEmptyString(wrap.ciphertext) || !isNonEmptyString(wrap.iv)) {
+  if (!isNonEmptyString(wrap.salt) || !isPositiveInteger(wrap.iterations) || wrap.kdf !== "argon2id" || !isNonEmptyString(wrap.ciphertext) || !isNonEmptyString(wrap.iv)) {
     throw new Error("Invalid key wrap fields");
   }
-  if (wrap.memory !== void 0 && (typeof wrap.memory !== "number" || !Number.isFinite(wrap.memory))) {
+  if (wrap.memory !== void 0 && !isPositiveInteger(wrap.memory)) {
     throw new Error("Invalid key wrap memory");
   }
-  if (wrap.parallelism !== void 0 && (typeof wrap.parallelism !== "number" || !Number.isFinite(wrap.parallelism))) {
+  if (wrap.parallelism !== void 0 && !isPositiveInteger(wrap.parallelism)) {
     throw new Error("Invalid key wrap parallelism");
   }
   return {
@@ -498,11 +501,11 @@ async function unwrapDekWithSecret(wrap, secret) {
   );
   return unwrapDekWithKek({ ciphertext: wrap.ciphertext, iv: wrap.iv }, kek);
 }
-async function encryptVaultSecret(plaintext, vaultKey) {
-  return encryptUtf8(plaintext, vaultKey);
+async function encryptVaultSecret(plaintext, vaultKey, options) {
+  return encryptUtf8(plaintext, vaultKey, options);
 }
-async function decryptVaultSecret(payload, vaultKey) {
-  return decryptUtf8(payload, vaultKey);
+async function decryptVaultSecret(payload, vaultKey, options) {
+  return decryptUtf8(payload, vaultKey, options);
 }
 
 // src/recovery.ts
@@ -518,6 +521,11 @@ function normalizeRecoveryPhrase(phrase) {
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
 }
+function assertGeneratedRecoveryPhrase(phrase) {
+  if (!isValidRecoveryPhrase(phrase)) {
+    throw new Error("Recovery phrase is not a valid BIP39 mnemonic");
+  }
+}
 var RECOVERY_SALT_LENGTH = 16;
 function randomRecoverySalt() {
   return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
@@ -530,6 +538,7 @@ function deserializeRecoverySalt(encoded) {
   return salt;
 }
 async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
+  assertGeneratedRecoveryPhrase(phrase);
   const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
   const authBytes = await hkdfExtractExpand(
     ikm,
@@ -565,22 +574,36 @@ async function unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey) {
   );
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+async function unlockDekWithRecoveryDetailed(phrase, wrap, deriveStretchedKey) {
   assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
-    return await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey);
+    return {
+      dek: await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey),
+      usedLegacyRawPhrase: false
+    };
   } catch (normalizedError) {
     if (phrase === normalized) {
       throw normalizedError;
     }
     try {
-      return await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey);
+      return {
+        dek: await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey),
+        usedLegacyRawPhrase: true
+      };
     } catch {
       throw normalizedError;
     }
   }
+}
+async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+  const { dek } = await unlockDekWithRecoveryDetailed(
+    phrase,
+    wrap,
+    deriveStretchedKey
+  );
+  return dek;
 }
 
 // src/vault-identity.ts
@@ -591,7 +614,13 @@ function vaultIdentityAad(vaultId) {
 }
 function buildDekProofMessage(parts) {
   return JSON.stringify([
-    "heirvault-dek-proof-v1",
+    // v2 is the JSON-array encoding. v1 was pipe-joined, and kept its tag
+    // when the encoding changed -- so a v1 verifier and a v2 signer produced
+    // different messages under the same name and simply failed to agree.
+    // Nothing persists a proof (challenges are single-use with a 2 minute
+    // TTL), so the tag can move without a migration; keep it in step with
+    // the encoding from here on.
+    "heirvault-dek-proof-v2",
     parts.purpose,
     parts.vaultId,
     parts.challengeId,
@@ -659,6 +688,7 @@ export {
   PASSPHRASE_MAX_LENGTH,
   PASSPHRASE_MIN_LENGTH,
   RECOVERY_SALT_LENGTH,
+  assertGeneratedRecoveryPhrase,
   assertSupportedArgon2Params,
   base64ToBytes,
   buildDekProofMessage,
@@ -708,6 +738,7 @@ export {
   signDekChallenge,
   stringToUtf8Bytes,
   unlockDekWithRecovery,
+  unlockDekWithRecoveryDetailed,
   unlockVaultCrypto,
   unwrapDekWithKek,
   unwrapDekWithSecret,

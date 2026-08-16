@@ -227,6 +227,11 @@ function normalizeRecoveryPhrase(phrase) {
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
 }
+function assertGeneratedRecoveryPhrase(phrase) {
+  if (!isValidRecoveryPhrase(phrase)) {
+    throw new Error("Recovery phrase is not a valid BIP39 mnemonic");
+  }
+}
 var RECOVERY_SALT_LENGTH = 16;
 function randomRecoverySalt() {
   return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
@@ -239,6 +244,7 @@ function deserializeRecoverySalt(encoded) {
   return salt;
 }
 async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
+  assertGeneratedRecoveryPhrase(phrase);
   const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
   const authBytes = await hkdfExtractExpand(
     ikm,
@@ -274,25 +280,40 @@ async function unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey) {
   );
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+async function unlockDekWithRecoveryDetailed(phrase, wrap, deriveStretchedKey) {
   assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
-    return await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey);
+    return {
+      dek: await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey),
+      usedLegacyRawPhrase: false
+    };
   } catch (normalizedError) {
     if (phrase === normalized) {
       throw normalizedError;
     }
     try {
-      return await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey);
+      return {
+        dek: await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey),
+        usedLegacyRawPhrase: true
+      };
     } catch {
       throw normalizedError;
     }
   }
 }
+async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+  const { dek } = await unlockDekWithRecoveryDetailed(
+    phrase,
+    wrap,
+    deriveStretchedKey
+  );
+  return dek;
+}
 export {
   RECOVERY_SALT_LENGTH,
+  assertGeneratedRecoveryPhrase,
   deriveRecoveryOpaquePassword,
   deserializeRecoverySalt,
   generateRecoveryPhrase,
@@ -300,6 +321,7 @@ export {
   normalizeRecoveryPhrase,
   randomRecoverySalt,
   unlockDekWithRecovery,
+  unlockDekWithRecoveryDetailed,
   wrapDekWithRecoveryPhrase
 };
 //# sourceMappingURL=recovery.js.map

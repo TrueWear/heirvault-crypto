@@ -329,6 +329,9 @@ function serializeKeyWrap(wrap) {
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
+function isPositiveInteger(value) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
 function parseKeyWrap(raw) {
   let parsed;
   try {
@@ -340,13 +343,13 @@ function parseKeyWrap(raw) {
     throw new Error("Invalid key wrap shape");
   }
   const wrap = parsed;
-  if (!isNonEmptyString(wrap.salt) || typeof wrap.iterations !== "number" || !Number.isFinite(wrap.iterations) || wrap.kdf !== "argon2id" || !isNonEmptyString(wrap.ciphertext) || !isNonEmptyString(wrap.iv)) {
+  if (!isNonEmptyString(wrap.salt) || !isPositiveInteger(wrap.iterations) || wrap.kdf !== "argon2id" || !isNonEmptyString(wrap.ciphertext) || !isNonEmptyString(wrap.iv)) {
     throw new Error("Invalid key wrap fields");
   }
-  if (wrap.memory !== void 0 && (typeof wrap.memory !== "number" || !Number.isFinite(wrap.memory))) {
+  if (wrap.memory !== void 0 && !isPositiveInteger(wrap.memory)) {
     throw new Error("Invalid key wrap memory");
   }
-  if (wrap.parallelism !== void 0 && (typeof wrap.parallelism !== "number" || !Number.isFinite(wrap.parallelism))) {
+  if (wrap.parallelism !== void 0 && !isPositiveInteger(wrap.parallelism)) {
     throw new Error("Invalid key wrap parallelism");
   }
   return {
@@ -381,11 +384,11 @@ async function unwrapDekWithSecret(wrap, secret) {
   );
   return unwrapDekWithKek({ ciphertext: wrap.ciphertext, iv: wrap.iv }, kek);
 }
-async function encryptVaultSecret(plaintext, vaultKey) {
-  return encryptUtf8(plaintext, vaultKey);
+async function encryptVaultSecret(plaintext, vaultKey, options) {
+  return encryptUtf8(plaintext, vaultKey, options);
 }
-async function decryptVaultSecret(payload, vaultKey) {
-  return decryptUtf8(payload, vaultKey);
+async function decryptVaultSecret(payload, vaultKey, options) {
+  return decryptUtf8(payload, vaultKey, options);
 }
 export {
   assertSupportedArgon2Params,

@@ -107,6 +107,28 @@ describe('recovery auth derivation', () => {
     }
   })
 
+  /**
+   * HKDF applies no work factor, so this derivation is only safe on a
+   * generated mnemonic. A made-up phrase would be enumerable at ~1 hash per
+   * guess by anyone holding the OPAQUE registration record, and the phrase
+   * that falls out also opens the vault wrap.
+   */
+  it('refuses a phrase that is not a valid BIP39 mnemonic', async () => {
+    const salt = randomRecoverySalt()
+    const notMnemonics = [
+      'correct horse battery staple',
+      'hunter2',
+      '',
+      // Right shape and real words, wrong checksum.
+      KAT_PHRASE.replace(/about$/, 'abandon'),
+    ]
+    for (const phrase of notMnemonics) {
+      await expect(
+        deriveRecoveryOpaquePassword(phrase, salt)
+      ).rejects.toThrow(/BIP39/i)
+    }
+  })
+
   it('accepts a freshly minted salt', async () => {
     await expect(
       deriveRecoveryOpaquePassword(generateRecoveryPhrase(12), randomRecoverySalt())
