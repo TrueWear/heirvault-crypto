@@ -9,6 +9,7 @@ import {
   randomSaltArgon2,
   serializeArgon2Salt,
   deserializeArgon2Salt,
+  type StretchedKeyDeriver,
 } from './argon2'
 import { bytesToBase64, base64ToBytes } from './encoding'
 import {
@@ -45,10 +46,15 @@ export function isValidRecoveryPhrase(phrase: string): boolean {
 
 export async function wrapDekWithRecoveryPhrase(
   dek: VaultDek,
-  phrase: string
+  phrase: string,
+  deriveStretchedKey?: StretchedKeyDeriver
 ): Promise<KeyWrap> {
   const salt = randomSaltArgon2()
-  const kek = await deriveVaultKeyArgon2(normalizeRecoveryPhrase(phrase), salt)
+  const kek = await deriveVaultKeyArgon2(
+    normalizeRecoveryPhrase(phrase),
+    salt,
+    deriveStretchedKey
+  )
   const raw = await exportDekRaw(dek)
   const payload = await encryptUtf8(bytesToBase64(raw), kek)
   return {
@@ -65,9 +71,10 @@ export async function wrapDekWithRecoveryPhrase(
 async function unlockWithPhrase(
   phrase: string,
   wrap: KeyWrap,
-  salt: Uint8Array
+  salt: Uint8Array,
+  deriveStretchedKey?: StretchedKeyDeriver
 ): Promise<VaultDek> {
-  const kek = await deriveVaultKeyArgon2(phrase, salt)
+  const kek = await deriveVaultKeyArgon2(phrase, salt, deriveStretchedKey)
   const rawB64 = await decryptUtf8(
     { ciphertext: wrap.ciphertext, iv: wrap.iv },
     kek
@@ -77,13 +84,14 @@ async function unlockWithPhrase(
 
 export async function unlockDekWithRecovery(
   phrase: string,
-  wrap: KeyWrap
+  wrap: KeyWrap,
+  deriveStretchedKey?: StretchedKeyDeriver
 ): Promise<VaultDek> {
   assertSupportedArgon2Params(wrap)
   const salt = deserializeArgon2Salt(wrap.salt)
   const normalized = normalizeRecoveryPhrase(phrase)
   try {
-    return await unlockWithPhrase(normalized, wrap, salt)
+    return await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey)
   } catch (normalizedError) {
     // Pre-normalization wraps derived the KEK from the raw typed phrase.
     // Retry once so those kits remain unlockable after canonicalize-on-unlock.
@@ -91,7 +99,7 @@ export async function unlockDekWithRecovery(
       throw normalizedError
     }
     try {
-      return await unlockWithPhrase(phrase, wrap, salt)
+      return await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey)
     } catch {
       throw normalizedError
     }
