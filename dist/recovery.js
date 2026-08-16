@@ -152,8 +152,37 @@ function deserializeArgon2Salt(encoded) {
   return salt;
 }
 
-// src/vault.ts
+// src/hkdf.ts
+var HKDF_INFO_RECOVERY_AUTH = "heirvault-recovery-auth-v1";
 function toArrayBuffer3(bytes) {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  );
+}
+async function hkdfExtractExpand(ikm, salt, info, length = 32) {
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer3(ikm),
+    "HKDF",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: toArrayBuffer3(salt),
+      info: toArrayBuffer3(new TextEncoder().encode(info))
+    },
+    baseKey,
+    length * 8
+  );
+  return new Uint8Array(bits);
+}
+
+// src/vault.ts
+function toArrayBuffer4(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength
@@ -166,7 +195,7 @@ async function exportDekRaw(dek) {
 async function importDekFromRaw(raw, extractable = true) {
   return crypto.subtle.importKey(
     "raw",
-    toArrayBuffer3(raw),
+    toArrayBuffer4(raw),
     { name: "AES-GCM", length: 256 },
     extractable,
     ["encrypt", "decrypt"]
@@ -197,6 +226,19 @@ function normalizeRecoveryPhrase(phrase) {
 }
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
+}
+var RECOVERY_SALT_LENGTH = 16;
+function randomRecoverySalt() {
+  return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
+}
+async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
+  const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
+  const authBytes = await hkdfExtractExpand(
+    ikm,
+    base64ToBytes(recoverySaltB64),
+    HKDF_INFO_RECOVERY_AUTH
+  );
+  return bytesToBase64(authBytes);
 }
 async function wrapDekWithRecoveryPhrase(dek, phrase, deriveStretchedKey) {
   const salt = randomSaltArgon2();
@@ -243,9 +285,12 @@ async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
   }
 }
 export {
+  RECOVERY_SALT_LENGTH,
+  deriveRecoveryOpaquePassword,
   generateRecoveryPhrase,
   isValidRecoveryPhrase,
   normalizeRecoveryPhrase,
+  randomRecoverySalt,
   unlockDekWithRecovery,
   wrapDekWithRecoveryPhrase
 };

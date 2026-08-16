@@ -12,6 +12,7 @@ import {
   type StretchedKeyDeriver,
 } from './argon2'
 import { bytesToBase64, base64ToBytes } from './encoding'
+import { HKDF_INFO_RECOVERY_AUTH, hkdfExtractExpand } from './hkdf'
 import {
   assertSupportedArgon2Params,
   exportDekRaw,
@@ -42,6 +43,47 @@ export function normalizeRecoveryPhrase(phrase: string): string {
 
 export function isValidRecoveryPhrase(phrase: string): boolean {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist)
+}
+
+/** Salt length for the recovery auth derivation, in bytes. */
+export const RECOVERY_SALT_LENGTH = 16
+
+/**
+ * Random salt for the recovery auth derivation, base64 for storage/transport.
+ *
+ * This salt MUST be stored alongside the recovery credential and MUST NOT be
+ * derived from the vault's `accountSalt`: `rewrapDekWithPassphrase` mints a
+ * fresh `accountSalt` on every passphrase change, which would silently
+ * re-point this derivation at a salt the credential was never created with.
+ */
+export function randomRecoverySalt(): string {
+  return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)))
+}
+
+/**
+ * Derive the OPAQUE password used to authenticate with a recovery phrase.
+ *
+ * Deliberately HKDF and not Argon2id: a BIP39 phrase carries 128 bits of
+ * entropy, so there is no low-entropy secret to stretch, and stretching here
+ * would add a second 64 MiB derivation to the recovery sign-in path for no
+ * security gain.
+ *
+ * This is fully domain-separated from vault unlock, which keeps Argon2id over
+ * the phrase with the wrap's own salt (`unlockDekWithRecovery`). Neither
+ * output is derivable from the other, and the wrap format is untouched, so
+ * emergency kits printed before recovery sign-in existed stay unlockable.
+ */
+export async function deriveRecoveryOpaquePassword(
+  phrase: string,
+  recoverySaltB64: string
+): Promise<string> {
+  const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase))
+  const authBytes = await hkdfExtractExpand(
+    ikm,
+    base64ToBytes(recoverySaltB64),
+    HKDF_INFO_RECOVERY_AUTH
+  )
+  return bytesToBase64(authBytes)
 }
 
 export async function wrapDekWithRecoveryPhrase(

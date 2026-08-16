@@ -241,6 +241,7 @@ function deserializeArgon2Salt(encoded) {
 var HKDF_INFO_AUTH = "heirvault-auth-v1";
 var HKDF_INFO_VAULT_KEK = "heirvault-vault-kek-v1";
 var HKDF_INFO_DEVICE = "heirvault-device-wrap-v1";
+var HKDF_INFO_RECOVERY_AUTH = "heirvault-recovery-auth-v1";
 function toArrayBuffer3(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -260,6 +261,26 @@ async function hkdfExpand(ikm, info, length = 32) {
       name: "HKDF",
       hash: "SHA-256",
       salt: new ArrayBuffer(0),
+      info: toArrayBuffer3(new TextEncoder().encode(info))
+    },
+    baseKey,
+    length * 8
+  );
+  return new Uint8Array(bits);
+}
+async function hkdfExtractExpand(ikm, salt, info, length = 32) {
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer3(ikm),
+    "HKDF",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: toArrayBuffer3(salt),
       info: toArrayBuffer3(new TextEncoder().encode(info))
     },
     baseKey,
@@ -497,6 +518,19 @@ function normalizeRecoveryPhrase(phrase) {
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
 }
+var RECOVERY_SALT_LENGTH = 16;
+function randomRecoverySalt() {
+  return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
+}
+async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
+  const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
+  const authBytes = await hkdfExtractExpand(
+    ikm,
+    base64ToBytes(recoverySaltB64),
+    HKDF_INFO_RECOVERY_AUTH
+  );
+  return bytesToBase64(authBytes);
+}
 async function wrapDekWithRecoveryPhrase(dek, phrase, deriveStretchedKey) {
   const salt = randomSaltArgon2();
   const kek = await deriveVaultKeyArgon2(
@@ -612,10 +646,12 @@ export {
   ARGON2_SALT_LENGTH,
   HKDF_INFO_AUTH,
   HKDF_INFO_DEVICE,
+  HKDF_INFO_RECOVERY_AUTH,
   HKDF_INFO_VAULT_KEK,
   PASSPHRASE_HARD_MAX_BYTES,
   PASSPHRASE_MAX_LENGTH,
   PASSPHRASE_MIN_LENGTH,
+  RECOVERY_SALT_LENGTH,
   assertSupportedArgon2Params,
   base64ToBytes,
   buildDekProofMessage,
@@ -627,6 +663,7 @@ export {
   decryptVaultSecret,
   deriveOpaquePassword,
   deriveOpaquePasswordFromPassphrase,
+  deriveRecoveryOpaquePassword,
   deriveStretchedKeyBytes,
   deriveStretchedKeyBytesAsync,
   deriveVaultKek,
@@ -643,6 +680,7 @@ export {
   generateVaultIdentity,
   getPassphrasePolicyError,
   hkdfExpand,
+  hkdfExtractExpand,
   importDekFromRaw,
   isPassphrasePolicySatisfied,
   isValidRecoveryPhrase,
@@ -652,6 +690,7 @@ export {
   parseVaultCrypto,
   passphrasePolicyErrorMessage,
   preparePassphraseForKdf,
+  randomRecoverySalt,
   randomSaltArgon2,
   rewrapDekWithPassphrase,
   serializeArgon2Salt,
