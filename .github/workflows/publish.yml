@@ -8,11 +8,29 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Gate the publish behind a reviewer. Any tag push reaches this workflow,
+    # so without an approval step whoever can push a `v*.*.*` tag can ship
+    # whatever that tag points at to every consumer.
+    # NOTE: this only enforces anything once the `npm-publish` environment has
+    # required reviewers configured in the repository settings; GitHub
+    # silently creates an unprotected environment otherwise.
+    environment: npm-publish
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Need history to prove the tagged commit is on main, below.
+          fetch-depth: 0
+      - name: Verify the tag is reachable from main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME points at a commit that is not on main."
+            echo "Publishing it would ship code that never passed review."
+            exit 1
+          fi
       - uses: pnpm/action-setup@v4
         with:
           version: 9
