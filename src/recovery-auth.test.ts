@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decryptUtf8 } from './aes-gcm'
-import { base64ToBytes } from './encoding'
+import { base64ToBytes, bytesToBase64 } from './encoding'
 import {
   RECOVERY_SALT_LENGTH,
   deriveRecoveryOpaquePassword,
@@ -84,6 +84,33 @@ describe('recovery auth derivation', () => {
   it('produces salts with no repeats across many draws', () => {
     const salts = new Set(Array.from({ length: 128 }, () => randomRecoverySalt()))
     expect(salts.size).toBe(128)
+  })
+
+  /**
+   * '' decodes to zero bytes, and HKDF-Extract treats an empty salt as an
+   * all-zero block: an absent or truncated salt column would otherwise yield
+   * one globally precomputable secret shared by every account.
+   */
+  it('rejects any salt that is not exactly RECOVERY_SALT_LENGTH bytes', async () => {
+    const phrase = generateRecoveryPhrase(12)
+    const wrongLengths = [
+      '',
+      bytesToBase64(new Uint8Array(0)),
+      bytesToBase64(new Uint8Array(RECOVERY_SALT_LENGTH - 1)),
+      bytesToBase64(new Uint8Array(RECOVERY_SALT_LENGTH + 1)),
+      bytesToBase64(new Uint8Array(32)),
+    ]
+    for (const salt of wrongLengths) {
+      await expect(
+        deriveRecoveryOpaquePassword(phrase, salt)
+      ).rejects.toThrow(/recovery salt length/i)
+    }
+  })
+
+  it('accepts a freshly minted salt', async () => {
+    await expect(
+      deriveRecoveryOpaquePassword(generateRecoveryPhrase(12), randomRecoverySalt())
+    ).resolves.toBeTypeOf('string')
   })
 
   /**

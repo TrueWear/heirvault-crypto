@@ -26,6 +26,15 @@ declare const RECOVERY_SALT_LENGTH = 16;
  */
 declare function randomRecoverySalt(): string;
 /**
+ * Decode a stored recovery salt, rejecting any length but the one we mint.
+ *
+ * An empty string is valid base64, so without this an absent or truncated
+ * salt column would decode to zero bytes and HKDF-Extract would fall back to
+ * an all-zero salt -- turning a per-account auth secret into a global,
+ * precomputable one. Mirrors `deserializeArgon2Salt`.
+ */
+declare function deserializeRecoverySalt(encoded: string): Uint8Array;
+/**
  * Derive the OPAQUE password used to authenticate with a recovery phrase.
  *
  * Deliberately HKDF and not Argon2id: a BIP39 phrase carries 128 bits of
@@ -42,4 +51,4 @@ declare function deriveRecoveryOpaquePassword(phrase: string, recoverySaltB64: s
 declare function wrapDekWithRecoveryPhrase(dek: VaultDek, phrase: string, deriveStretchedKey?: StretchedKeyDeriver): Promise<KeyWrap>;
 declare function unlockDekWithRecovery(phrase: string, wrap: KeyWrap, deriveStretchedKey?: StretchedKeyDeriver): Promise<VaultDek>;
 
-export { RECOVERY_SALT_LENGTH, deriveRecoveryOpaquePassword, generateRecoveryPhrase, isValidRecoveryPhrase, normalizeRecoveryPhrase, randomRecoverySalt, unlockDekWithRecovery, wrapDekWithRecoveryPhrase };
+export { RECOVERY_SALT_LENGTH, deriveRecoveryOpaquePassword, deserializeRecoverySalt, generateRecoveryPhrase, isValidRecoveryPhrase, normalizeRecoveryPhrase, randomRecoverySalt, unlockDekWithRecovery, wrapDekWithRecoveryPhrase };

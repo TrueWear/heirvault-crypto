@@ -231,11 +231,18 @@ var RECOVERY_SALT_LENGTH = 16;
 function randomRecoverySalt() {
   return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
 }
+function deserializeRecoverySalt(encoded) {
+  const salt = base64ToBytes(encoded);
+  if (salt.length !== RECOVERY_SALT_LENGTH) {
+    throw new Error(`Invalid recovery salt length: ${salt.length}`);
+  }
+  return salt;
+}
 async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
   const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
   const authBytes = await hkdfExtractExpand(
     ikm,
-    base64ToBytes(recoverySaltB64),
+    deserializeRecoverySalt(recoverySaltB64),
     HKDF_INFO_RECOVERY_AUTH
   );
   return bytesToBase64(authBytes);
@@ -287,6 +294,7 @@ async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
 export {
   RECOVERY_SALT_LENGTH,
   deriveRecoveryOpaquePassword,
+  deserializeRecoverySalt,
   generateRecoveryPhrase,
   isValidRecoveryPhrase,
   normalizeRecoveryPhrase,

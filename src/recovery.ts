@@ -61,6 +61,22 @@ export function randomRecoverySalt(): string {
 }
 
 /**
+ * Decode a stored recovery salt, rejecting any length but the one we mint.
+ *
+ * An empty string is valid base64, so without this an absent or truncated
+ * salt column would decode to zero bytes and HKDF-Extract would fall back to
+ * an all-zero salt -- turning a per-account auth secret into a global,
+ * precomputable one. Mirrors `deserializeArgon2Salt`.
+ */
+export function deserializeRecoverySalt(encoded: string): Uint8Array {
+  const salt = base64ToBytes(encoded)
+  if (salt.length !== RECOVERY_SALT_LENGTH) {
+    throw new Error(`Invalid recovery salt length: ${salt.length}`)
+  }
+  return salt
+}
+
+/**
  * Derive the OPAQUE password used to authenticate with a recovery phrase.
  *
  * Deliberately HKDF and not Argon2id: a BIP39 phrase carries 128 bits of
@@ -80,7 +96,7 @@ export async function deriveRecoveryOpaquePassword(
   const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase))
   const authBytes = await hkdfExtractExpand(
     ikm,
-    base64ToBytes(recoverySaltB64),
+    deserializeRecoverySalt(recoverySaltB64),
     HKDF_INFO_RECOVERY_AUTH
   )
   return bytesToBase64(authBytes)
