@@ -1,5 +1,5 @@
 // src/argon2.ts
-import { argon2id } from "@noble/hashes/argon2";
+import { argon2id, argon2idAsync } from "@noble/hashes/argon2";
 
 // src/encoding.ts
 function bytesToBase64(bytes) {
@@ -67,8 +67,21 @@ function deriveStretchedKeyBytes(password, salt) {
     })
   );
 }
-async function deriveVaultKeyArgon2(password, salt) {
-  const keyBytes = deriveStretchedKeyBytes(password, salt);
+async function deriveStretchedKeyBytesAsync(password, salt) {
+  const passwordBytes = new TextEncoder().encode(
+    preparePassphraseForKdf(password)
+  );
+  return new Uint8Array(
+    await argon2idAsync(passwordBytes, salt, {
+      t: ARGON2_ITERATIONS,
+      m: ARGON2_MEMORY_KIB,
+      p: ARGON2_PARALLELISM,
+      dkLen: ARGON2_KEY_LENGTH
+    })
+  );
+}
+async function deriveVaultKeyArgon2(password, salt, deriveStretchedKey = deriveStretchedKeyBytesAsync) {
+  const keyBytes = await deriveStretchedKey(password, salt);
   return crypto.subtle.importKey(
     "raw",
     toArrayBuffer(keyBytes),
@@ -99,6 +112,7 @@ export {
   ARGON2_PARALLELISM,
   ARGON2_SALT_LENGTH,
   deriveStretchedKeyBytes,
+  deriveStretchedKeyBytesAsync,
   deriveVaultKeyArgon2,
   deserializeArgon2Salt,
   randomSaltArgon2,

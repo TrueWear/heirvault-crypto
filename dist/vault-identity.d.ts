@@ -1,5 +1,6 @@
 import { EncryptedPayload } from './aes-gcm.js';
 import { VaultDek } from './vault.js';
+import './argon2.js';
 
 type VaultIdentityMaterial = {
     /** Compressed P-256 public key, base64. */

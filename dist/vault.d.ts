@@ -1,4 +1,5 @@
 import { EncryptedPayload } from './aes-gcm.js';
+import { StretchedKeyDeriver } from './argon2.js';
 
 type KdfType = 'argon2id';
 /** Wrap of a random DEK under a KEK (passphrase, recovery, recipient, or device). */
@@ -12,7 +13,7 @@ type KeyWrap = {
     iv: string;
 };
 /** Vault crypto blob stored as JSON on the vault row. */
-type VaultCryptoV2 = {
+type VaultCrypto = {
     version: 2;
     accountSalt: string;
     kdf: 'argon2id';
@@ -39,12 +40,13 @@ type PassphraseDerivedMaterial = {
     stretchedKey: Uint8Array;
     vaultKek: CryptoKey;
     opaquePassword: string;
-    vaultCrypto: VaultCryptoV2;
+    vaultCrypto: VaultCrypto;
     dek: VaultDek;
 };
 /** Create a new vault: random DEK + passphrase wrap + OPAQUE password material. */
-declare function createVaultCryptoV2(passphrase: string, options?: {
+declare function createVaultCrypto(passphrase: string, options?: {
     accountSaltB64?: string;
+    deriveStretchedKey?: StretchedKeyDeriver;
 }): Promise<PassphraseDerivedMaterial>;
 /**
  * Reject unknown or weakened Argon2 suites. Stored params must match the
@@ -57,17 +59,23 @@ declare function assertSupportedArgon2Params(cryptoBlob: {
     parallelism?: number;
 }): void;
 /** Unlock vault DEK from passphrase + stored crypto blob. */
-declare function unlockVaultCryptoV2(passphrase: string, cryptoBlob: VaultCryptoV2): Promise<{
+declare function unlockVaultCrypto(passphrase: string, cryptoBlob: VaultCrypto, options?: {
+    deriveStretchedKey?: StretchedKeyDeriver;
+}): Promise<{
     dek: VaultDek;
     opaquePassword: string;
     vaultKek: CryptoKey;
 }>;
 /** Derive OPAQUE password only (login without unwrap). */
-declare function deriveOpaquePasswordFromPassphrase(passphrase: string, accountSaltB64: string): Promise<string>;
+declare function deriveOpaquePasswordFromPassphrase(passphrase: string, accountSaltB64: string, options?: {
+    deriveStretchedKey?: StretchedKeyDeriver;
+}): Promise<string>;
 /** Rewrap DEK under a new passphrase (passphrase change / recovery reset). */
-declare function rewrapDekWithPassphrase(dek: VaultDek, newPassphrase: string): Promise<PassphraseDerivedMaterial>;
-declare function parseVaultCrypto(encryptedVaultKey: string): VaultCryptoV2;
-declare function serializeVaultCryptoV2(crypto: VaultCryptoV2): string;
+declare function rewrapDekWithPassphrase(dek: VaultDek, newPassphrase: string, options?: {
+    deriveStretchedKey?: StretchedKeyDeriver;
+}): Promise<PassphraseDerivedMaterial>;
+declare function parseVaultCrypto(encryptedVaultKey: string): VaultCrypto;
+declare function serializeVaultCrypto(crypto: VaultCrypto): string;
 declare function serializeKeyWrap(wrap: KeyWrap): string;
 declare function parseKeyWrap(raw: string): KeyWrap;
 /** Build a KeyWrap for recipient/device using Argon2id KEK from a secret. */
@@ -76,4 +84,4 @@ declare function unwrapDekWithSecret(wrap: KeyWrap, secret: string): Promise<Vau
 declare function encryptVaultSecret(plaintext: string, vaultKey: CryptoKey): Promise<EncryptedPayload>;
 declare function decryptVaultSecret(payload: EncryptedPayload, vaultKey: CryptoKey): Promise<string>;
 
-export { type KdfType, type KeyWrap, type PassphraseDerivedMaterial, type VaultCryptoV2, type VaultDek, assertSupportedArgon2Params, createVaultCryptoV2, decryptVaultSecret, deriveOpaquePasswordFromPassphrase, encryptVaultSecret, exportDekRaw, generateVaultDek, importDekFromRaw, parseKeyWrap, parseVaultCrypto, rewrapDekWithPassphrase, serializeKeyWrap, serializeVaultCryptoV2, unlockVaultCryptoV2, unwrapDekWithKek, unwrapDekWithSecret, wrapDekWithKek, wrapDekWithSecret };
+export { type KdfType, type KeyWrap, type PassphraseDerivedMaterial, type VaultCrypto, type VaultDek, assertSupportedArgon2Params, createVaultCrypto, decryptVaultSecret, deriveOpaquePasswordFromPassphrase, encryptVaultSecret, exportDekRaw, generateVaultDek, importDekFromRaw, parseKeyWrap, parseVaultCrypto, rewrapDekWithPassphrase, serializeKeyWrap, serializeVaultCrypto, unlockVaultCrypto, unwrapDekWithKek, unwrapDekWithSecret, wrapDekWithKek, wrapDekWithSecret };

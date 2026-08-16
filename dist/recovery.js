@@ -85,7 +85,7 @@ async function decryptUtf8(payload, key, options) {
 }
 
 // src/argon2.ts
-import { argon2id } from "@noble/hashes/argon2";
+import { argon2id, argon2idAsync } from "@noble/hashes/argon2";
 
 // src/passphrase.ts
 var PASSPHRASE_HARD_MAX_BYTES = 1024;
@@ -113,12 +113,12 @@ function toArrayBuffer2(bytes) {
     bytes.byteOffset + bytes.byteLength
   );
 }
-function deriveStretchedKeyBytes(password, salt) {
+async function deriveStretchedKeyBytesAsync(password, salt) {
   const passwordBytes = new TextEncoder().encode(
     preparePassphraseForKdf(password)
   );
   return new Uint8Array(
-    argon2id(passwordBytes, salt, {
+    await argon2idAsync(passwordBytes, salt, {
       t: ARGON2_ITERATIONS,
       m: ARGON2_MEMORY_KIB,
       p: ARGON2_PARALLELISM,
@@ -126,8 +126,8 @@ function deriveStretchedKeyBytes(password, salt) {
     })
   );
 }
-async function deriveVaultKeyArgon2(password, salt) {
-  const keyBytes = deriveStretchedKeyBytes(password, salt);
+async function deriveVaultKeyArgon2(password, salt, deriveStretchedKey = deriveStretchedKeyBytesAsync) {
+  const keyBytes = await deriveStretchedKey(password, salt);
   return crypto.subtle.importKey(
     "raw",
     toArrayBuffer2(keyBytes),
@@ -198,9 +198,13 @@ function normalizeRecoveryPhrase(phrase) {
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
 }
-async function wrapDekWithRecoveryPhrase(dek, phrase) {
+async function wrapDekWithRecoveryPhrase(dek, phrase, deriveStretchedKey) {
   const salt = randomSaltArgon2();
-  const kek = await deriveVaultKeyArgon2(normalizeRecoveryPhrase(phrase), salt);
+  const kek = await deriveVaultKeyArgon2(
+    normalizeRecoveryPhrase(phrase),
+    salt,
+    deriveStretchedKey
+  );
   const raw = await exportDekRaw(dek);
   const payload = await encryptUtf8(bytesToBase64(raw), kek);
   return {
@@ -213,26 +217,26 @@ async function wrapDekWithRecoveryPhrase(dek, phrase) {
     iv: payload.iv
   };
 }
-async function unlockWithPhrase(phrase, wrap, salt) {
-  const kek = await deriveVaultKeyArgon2(phrase, salt);
+async function unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey) {
+  const kek = await deriveVaultKeyArgon2(phrase, salt, deriveStretchedKey);
   const rawB64 = await decryptUtf8(
     { ciphertext: wrap.ciphertext, iv: wrap.iv },
     kek
   );
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function unlockDekWithRecovery(phrase, wrap) {
+async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
   assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
-    return await unlockWithPhrase(normalized, wrap, salt);
+    return await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey);
   } catch (normalizedError) {
     if (phrase === normalized) {
       throw normalizedError;
     }
     try {
-      return await unlockWithPhrase(phrase, wrap, salt);
+      return await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey);
     } catch {
       throw normalizedError;
     }

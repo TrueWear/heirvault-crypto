@@ -36,6 +36,12 @@ HKDF info strings:
 - `heirvault-vault-kek-v1` — vault key-encryption key
 - `heirvault-device-wrap-v1` — device wrap domain (exported for product use)
 
+### Sync vs. async Argon2
+
+`deriveStretchedKeyBytes` is synchronous and blocks the calling thread for the full Argon2id pass (a few hundred ms to a couple seconds) with no yielding — in a browser this freezes in-flight UI, including CSS animations, since the main thread still owns frame submission. It exists only for tests and non-UI (Node script) contexts.
+
+Every function that touches the vault DEK from browser code (`createVaultCryptoV2`, `unlockVaultCryptoV2`, `deriveOpaquePasswordFromPassphrase`, `rewrapDekWithPassphrase`, `deriveVaultKeyArgon2`) already awaits `deriveStretchedKeyBytesAsync` internally, so consumers get this for free. If you add a new call site that needs the stretched key directly, await the `*Async` variant, not the sync one — it's the same algorithm and produces byte-identical output (see `vault-golden.test.ts`), it just doesn't stall the page.
+
 ## Live vault format (`VaultCryptoV2`)
 
 Stored as JSON on the vault row:
