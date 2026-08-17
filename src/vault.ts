@@ -15,7 +15,7 @@ import { deriveOpaquePassword, deriveVaultKek } from './hkdf'
 
 export type KdfType = 'argon2id'
 
-/** Wrap of a random DEK under a KEK (passphrase, recovery, recipient, or device). */
+/** Wrap of a random DEK under a KEK (password, recovery, recipient, or device). */
 export type KeyWrap = {
   salt: string
   iterations: number
@@ -92,7 +92,7 @@ export async function unwrapDekWithKek(
   return importDekFromRaw(base64ToBytes(rawB64))
 }
 
-export type PassphraseDerivedMaterial = {
+export type PasswordDerivedMaterial = {
   accountSalt: Uint8Array
   stretchedKey: Uint8Array
   vaultKek: CryptoKey
@@ -101,20 +101,20 @@ export type PassphraseDerivedMaterial = {
   dek: VaultDek
 }
 
-/** Create a new vault: random DEK + passphrase wrap + OPAQUE password material. */
+/** Create a new vault: random DEK + password wrap + OPAQUE password material. */
 export async function createVaultCrypto(
-  passphrase: string,
+  password: string,
   options?: {
     accountSaltB64?: string
     deriveStretchedKey?: StretchedKeyDeriver
   }
-): Promise<PassphraseDerivedMaterial> {
+): Promise<PasswordDerivedMaterial> {
   const deriveStretchedKey =
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   const accountSalt = options?.accountSaltB64
     ? deserializeArgon2Salt(options.accountSaltB64)
     : randomSaltArgon2()
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(password, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
   const opaquePassword = await deriveOpaquePassword(stretchedKey)
   const dek = await generateVaultDek()
@@ -142,8 +142,19 @@ export async function createVaultCrypto(
 }
 
 /**
- * Reject unknown or weakened Argon2 suites. Stored params must match the
- * supported constants (advisory fields are not used for derivation yet).
+ * Reject unknown or weakened Argon2 suites.
+ *
+ * Read this precisely: it rejects a stored parameter that disagrees with the
+ * supported suite, but a wrap that simply omits `memory`/`iterations`/
+ * `parallelism` passes. That is safe only because derivation never consults
+ * these fields -- `deriveVaultKeyArgon2` always uses the ARGON2_* module
+ * constants -- so an attacker cannot weaken a derivation by editing or
+ * dropping them. They are advisory, recorded so a future migration can tell
+ * which suite produced a wrap.
+ *
+ * If derivation is ever changed to honor stored params, this check must
+ * become mandatory-field validation first, or omitting a field turns into a
+ * downgrade vector.
  */
 export function assertSupportedArgon2Params(cryptoBlob: {
   kdf: string
@@ -174,9 +185,9 @@ export function assertSupportedArgon2Params(cryptoBlob: {
   }
 }
 
-/** Unlock vault DEK from passphrase + stored crypto blob. */
+/** Unlock vault DEK from password + stored crypto blob. */
 export async function unlockVaultCrypto(
-  passphrase: string,
+  password: string,
   cryptoBlob: VaultCrypto,
   options?: { deriveStretchedKey?: StretchedKeyDeriver }
 ): Promise<{ dek: VaultDek; opaquePassword: string; vaultKek: CryptoKey }> {
@@ -184,7 +195,7 @@ export async function unlockVaultCrypto(
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   assertSupportedArgon2Params(cryptoBlob)
   const accountSalt = deserializeArgon2Salt(cryptoBlob.accountSalt)
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(password, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
   const opaquePassword = await deriveOpaquePassword(stretchedKey)
   const dek = await unwrapDekWithKek(cryptoBlob.vaultKeyWrap, vaultKek)
@@ -192,28 +203,28 @@ export async function unlockVaultCrypto(
 }
 
 /** Derive OPAQUE password only (login without unwrap). */
-export async function deriveOpaquePasswordFromPassphrase(
-  passphrase: string,
+export async function deriveOpaquePasswordForLogin(
+  password: string,
   accountSaltB64: string,
   options?: { deriveStretchedKey?: StretchedKeyDeriver }
 ): Promise<string> {
   const deriveStretchedKey =
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   const accountSalt = deserializeArgon2Salt(accountSaltB64)
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(password, accountSalt)
   return deriveOpaquePassword(stretchedKey)
 }
 
-/** Rewrap DEK under a new passphrase (passphrase change / recovery reset). */
-export async function rewrapDekWithPassphrase(
+/** Rewrap DEK under a new password (password change / recovery reset). */
+export async function rewrapDekWithPassword(
   dek: VaultDek,
-  newPassphrase: string,
+  newPassword: string,
   options?: { deriveStretchedKey?: StretchedKeyDeriver }
-): Promise<PassphraseDerivedMaterial> {
+): Promise<PasswordDerivedMaterial> {
   const deriveStretchedKey =
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   const accountSalt = randomSaltArgon2()
-  const stretchedKey = await deriveStretchedKey(newPassphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(newPassword, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
   const opaquePassword = await deriveOpaquePassword(stretchedKey)
   const wrap = await wrapDekWithKek(dek, vaultKek)
@@ -266,6 +277,11 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
+/** Argon2 cost parameters are counts: 0, negatives and fractions are junk. */
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
 export function parseKeyWrap(raw: string): KeyWrap {
   let parsed: unknown
   try {
@@ -283,25 +299,17 @@ export function parseKeyWrap(raw: string): KeyWrap {
   const wrap = parsed as Record<string, unknown>
   if (
     !isNonEmptyString(wrap.salt) ||
-    typeof wrap.iterations !== 'number' ||
-    !Number.isFinite(wrap.iterations) ||
+    !isPositiveInteger(wrap.iterations) ||
     wrap.kdf !== 'argon2id' ||
     !isNonEmptyString(wrap.ciphertext) ||
     !isNonEmptyString(wrap.iv)
   ) {
     throw new Error('Invalid key wrap fields')
   }
-  if (
-    wrap.memory !== undefined &&
-    (typeof wrap.memory !== 'number' || !Number.isFinite(wrap.memory))
-  ) {
+  if (wrap.memory !== undefined && !isPositiveInteger(wrap.memory)) {
     throw new Error('Invalid key wrap memory')
   }
-  if (
-    wrap.parallelism !== undefined &&
-    (typeof wrap.parallelism !== 'number' ||
-      !Number.isFinite(wrap.parallelism))
-  ) {
+  if (wrap.parallelism !== undefined && !isPositiveInteger(wrap.parallelism)) {
     throw new Error('Invalid key wrap parallelism')
   }
   return {
@@ -346,16 +354,28 @@ export async function unwrapDekWithSecret(
   return unwrapDekWithKek({ ciphertext: wrap.ciphertext, iv: wrap.iv }, kek)
 }
 
+/**
+ * Encrypt a vault field under the vault key.
+ *
+ * `additionalData` binds the ciphertext to its context (see `vaultFieldAad`),
+ * so a blob cannot be lifted from one field or record and replayed into
+ * another. It is optional because ciphertext already stored without it stays
+ * decryptable only when decrypted the same way: AAD is covered by the GCM
+ * tag, so adopting it for an existing field is a re-encrypt migration, not a
+ * flag flip. New fields should pass it from the start.
+ */
 export async function encryptVaultSecret(
   plaintext: string,
-  vaultKey: CryptoKey
+  vaultKey: CryptoKey,
+  options?: { additionalData?: string }
 ): Promise<EncryptedPayload> {
-  return encryptUtf8(plaintext, vaultKey)
+  return encryptUtf8(plaintext, vaultKey, options)
 }
 
 export async function decryptVaultSecret(
   payload: EncryptedPayload,
-  vaultKey: CryptoKey
+  vaultKey: CryptoKey,
+  options?: { additionalData?: string }
 ): Promise<string> {
-  return decryptUtf8(payload, vaultKey)
+  return decryptUtf8(payload, vaultKey, options)
 }

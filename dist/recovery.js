@@ -87,16 +87,16 @@ async function decryptUtf8(payload, key, options) {
 // src/argon2.ts
 import { argon2id, argon2idAsync } from "@noble/hashes/argon2";
 
-// src/passphrase.ts
-var PASSPHRASE_HARD_MAX_BYTES = 1024;
-function normalizePassphrase(passphrase) {
-  return passphrase.normalize("NFC");
+// src/password.ts
+var PASSWORD_HARD_MAX_BYTES = 1024;
+function normalizePassword(password) {
+  return password.normalize("NFC");
 }
-function preparePassphraseForKdf(passphrase) {
-  const normalized = normalizePassphrase(passphrase);
+function preparePasswordForKdf(password) {
+  const normalized = normalizePassword(password);
   const byteLength = new TextEncoder().encode(normalized).byteLength;
-  if (byteLength > PASSPHRASE_HARD_MAX_BYTES) {
-    throw new Error("Passphrase is too long");
+  if (byteLength > PASSWORD_HARD_MAX_BYTES) {
+    throw new Error("Password is too long");
   }
   return normalized;
 }
@@ -115,7 +115,7 @@ function toArrayBuffer2(bytes) {
 }
 async function deriveStretchedKeyBytesAsync(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     await argon2idAsync(passwordBytes, salt, {
@@ -152,8 +152,37 @@ function deserializeArgon2Salt(encoded) {
   return salt;
 }
 
-// src/vault.ts
+// src/hkdf.ts
+var HKDF_INFO_RECOVERY_AUTH = "heirvault-recovery-auth-v1";
 function toArrayBuffer3(bytes) {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  );
+}
+async function hkdfExtractExpand(ikm, salt, info, length = 32) {
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer3(ikm),
+    "HKDF",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: toArrayBuffer3(salt),
+      info: toArrayBuffer3(new TextEncoder().encode(info))
+    },
+    baseKey,
+    length * 8
+  );
+  return new Uint8Array(bits);
+}
+
+// src/vault.ts
+function toArrayBuffer4(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength
@@ -166,7 +195,7 @@ async function exportDekRaw(dek) {
 async function importDekFromRaw(raw, extractable = true) {
   return crypto.subtle.importKey(
     "raw",
-    toArrayBuffer3(raw),
+    toArrayBuffer4(raw),
     { name: "AES-GCM", length: 256 },
     extractable,
     ["encrypt", "decrypt"]
@@ -198,6 +227,32 @@ function normalizeRecoveryPhrase(phrase) {
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
 }
+function assertGeneratedRecoveryPhrase(phrase) {
+  if (!isValidRecoveryPhrase(phrase)) {
+    throw new Error("Recovery phrase is not a valid BIP39 mnemonic");
+  }
+}
+var RECOVERY_SALT_LENGTH = 16;
+function randomRecoverySalt() {
+  return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
+}
+function deserializeRecoverySalt(encoded) {
+  const salt = base64ToBytes(encoded);
+  if (salt.length !== RECOVERY_SALT_LENGTH) {
+    throw new Error(`Invalid recovery salt length: ${salt.length}`);
+  }
+  return salt;
+}
+async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
+  assertGeneratedRecoveryPhrase(phrase);
+  const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
+  const authBytes = await hkdfExtractExpand(
+    ikm,
+    deserializeRecoverySalt(recoverySaltB64),
+    HKDF_INFO_RECOVERY_AUTH
+  );
+  return bytesToBase64(authBytes);
+}
 async function wrapDekWithRecoveryPhrase(dek, phrase, deriveStretchedKey) {
   const salt = randomSaltArgon2();
   const kek = await deriveVaultKeyArgon2(
@@ -225,28 +280,48 @@ async function unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey) {
   );
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+async function unlockDekWithRecoveryDetailed(phrase, wrap, deriveStretchedKey) {
   assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
-    return await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey);
+    return {
+      dek: await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey),
+      usedLegacyRawPhrase: false
+    };
   } catch (normalizedError) {
     if (phrase === normalized) {
       throw normalizedError;
     }
     try {
-      return await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey);
+      return {
+        dek: await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey),
+        usedLegacyRawPhrase: true
+      };
     } catch {
       throw normalizedError;
     }
   }
 }
+async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+  const { dek } = await unlockDekWithRecoveryDetailed(
+    phrase,
+    wrap,
+    deriveStretchedKey
+  );
+  return dek;
+}
 export {
+  RECOVERY_SALT_LENGTH,
+  assertGeneratedRecoveryPhrase,
+  deriveRecoveryOpaquePassword,
+  deserializeRecoverySalt,
   generateRecoveryPhrase,
   isValidRecoveryPhrase,
   normalizeRecoveryPhrase,
+  randomRecoverySalt,
   unlockDekWithRecovery,
+  unlockDekWithRecoveryDetailed,
   wrapDekWithRecoveryPhrase
 };
 //# sourceMappingURL=recovery.js.map

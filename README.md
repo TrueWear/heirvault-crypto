@@ -25,29 +25,30 @@ Requires a Web Crypto environment (`crypto.subtle` and `crypto.getRandomValues`)
 | Piece | Choice |
 | --- | --- |
 | Content encryption | AES-256-GCM (12-byte IV); optional AAD via `additionalData` / `vaultFieldAad` |
-| Passphrase KDF | Argon2id (`m=65536` KiB, `t=3`, `p=4`, 32-byte output) via `@noble/hashes`; unlock rejects weakened stored params |
+| Password KDF | Argon2id (`m=65536` KiB, `t=3`, `p=4`, 32-byte output) via `@noble/hashes`; unlock rejects weakened stored params |
 | Domain separation | HKDF-SHA-256 with empty salt and fixed info strings |
 | Recovery | BIP39 mnemonic wrapping the vault DEK (`@scure/bip39`) |
 | Proof-of-DEK | ECDSA P-256 (`@noble/curves`); private key AES-GCM-wrapped under the vault DEK |
 
 HKDF info strings:
 
-- `heirvault-auth-v1` — auth material derived from the stretched passphrase (used by the product with OPAQUE; this package only performs the HKDF step)
+- `heirvault-auth-v1` — auth material derived from the stretched password (used by the product with OPAQUE; this package only performs the HKDF step)
 - `heirvault-vault-kek-v1` — vault key-encryption key
 - `heirvault-device-wrap-v1` — device wrap domain (exported for product use)
+- `heirvault-recovery-auth-v1` — auth material derived from the recovery phrase for recovery sign-in. Unlike the three above it is an HKDF **extract-and-expand** over the phrase with a stored per-account salt, not an expand over an Argon2 stretch. It is fully separate from the recovery *unlock* path, which keeps Argon2id over the same phrase with the wrap's own salt, so neither output yields the other.
 
 ### Sync vs. async Argon2
 
 `deriveStretchedKeyBytes` is synchronous and blocks the calling thread for the full Argon2id pass (a few hundred ms to a couple seconds) with no yielding — in a browser this freezes in-flight UI, including CSS animations, since the main thread still owns frame submission. It exists only for tests and non-UI (Node script) contexts.
 
-Every function that touches the vault DEK from browser code (`createVaultCryptoV2`, `unlockVaultCryptoV2`, `deriveOpaquePasswordFromPassphrase`, `rewrapDekWithPassphrase`, `deriveVaultKeyArgon2`) already awaits `deriveStretchedKeyBytesAsync` internally, so consumers get this for free. If you add a new call site that needs the stretched key directly, await the `*Async` variant, not the sync one — it's the same algorithm and produces byte-identical output (see `vault-golden.test.ts`), it just doesn't stall the page.
+Every function that touches the vault DEK from browser code (`createVaultCrypto`, `unlockVaultCrypto`, `deriveOpaquePasswordForLogin`, `rewrapDekWithPassword`, `deriveVaultKeyArgon2`) already awaits `deriveStretchedKeyBytesAsync` internally, so consumers get this for free. If you add a new call site that needs the stretched key directly, await the `*Async` variant, not the sync one — it's the same algorithm and produces byte-identical output (see `vault-golden.test.ts`), it just doesn't stall the page.
 
-## Live vault format (`VaultCryptoV2`)
+## Live vault format (`VaultCrypto`)
 
 Stored as JSON on the vault row:
 
 ```ts
-type VaultCryptoV2 = {
+type VaultCrypto = {
   version: 2
   accountSalt: string // base64 Argon2 salt
   kdf: 'argon2id'
@@ -81,7 +82,7 @@ Callers that encrypt item fields should pass matching `additionalData` on encryp
 
 ## Proof-of-DEK (`vault-identity`)
 
-Privileged product operations (passphrase replace, kill/panic API keys, key-wrap rotation, handoff publish) require a cryptographic proof that the caller currently holds the vault DEK.
+Privileged product operations (password replace, kill/panic API keys, key-wrap rotation, handoff publish) require a cryptographic proof that the caller currently holds the vault DEK.
 
 At vault setup:
 
@@ -99,15 +100,18 @@ To prove possession:
 Canonical message format:
 
 ```text
-heirvault-dek-proof-v1|<purpose>|<vaultId>|<challengeId>|<nonce>
+["heirvault-dek-proof-v2","<purpose>","<vaultId>","<challengeId>","<nonce>"]
 ```
+
+A JSON array, so no field can smuggle the delimiter and shift the others.
+The tag tracks the encoding: v1 was the pipe-joined form.
 
 ## Usage
 
 ```ts
 import {
-  createVaultCryptoV2,
-  unlockVaultCryptoV2,
+  createVaultCrypto,
+  unlockVaultCrypto,
   encryptVaultSecret,
   decryptVaultSecret,
   generateRecoveryPhrase,
@@ -115,10 +119,10 @@ import {
   unlockDekWithRecovery,
 } from '@heirvault/crypto'
 
-const created = await createVaultCryptoV2('a-strong-passphrase')
+const created = await createVaultCrypto('a-strong-password')
 const sealed = await encryptVaultSecret('secret note', created.dek)
-const unlocked = await unlockVaultCryptoV2(
-  'a-strong-passphrase',
+const unlocked = await unlockVaultCrypto(
+  'a-strong-password',
   created.vaultCrypto
 )
 const plain = await decryptVaultSecret(sealed, unlocked.dek)

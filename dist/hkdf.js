@@ -29,6 +29,7 @@ function base64ToBytes(base64) {
 var HKDF_INFO_AUTH = "heirvault-auth-v1";
 var HKDF_INFO_VAULT_KEK = "heirvault-vault-kek-v1";
 var HKDF_INFO_DEVICE = "heirvault-device-wrap-v1";
+var HKDF_INFO_RECOVERY_AUTH = "heirvault-recovery-auth-v1";
 function toArrayBuffer(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -48,6 +49,26 @@ async function hkdfExpand(ikm, info, length = 32) {
       name: "HKDF",
       hash: "SHA-256",
       salt: new ArrayBuffer(0),
+      info: toArrayBuffer(new TextEncoder().encode(info))
+    },
+    baseKey,
+    length * 8
+  );
+  return new Uint8Array(bits);
+}
+async function hkdfExtractExpand(ikm, salt, info, length = 32) {
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer(ikm),
+    "HKDF",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: toArrayBuffer(salt),
       info: toArrayBuffer(new TextEncoder().encode(info))
     },
     baseKey,
@@ -78,11 +99,13 @@ function deserializeKeyBytes(encoded) {
 export {
   HKDF_INFO_AUTH,
   HKDF_INFO_DEVICE,
+  HKDF_INFO_RECOVERY_AUTH,
   HKDF_INFO_VAULT_KEK,
   deriveOpaquePassword,
   deriveVaultKek,
   deserializeKeyBytes,
   hkdfExpand,
+  hkdfExtractExpand,
   serializeKeyBytes
 };
 //# sourceMappingURL=hkdf.js.map

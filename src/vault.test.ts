@@ -3,7 +3,7 @@ import {
   assertSupportedArgon2Params,
   createVaultCrypto,
   unlockVaultCrypto,
-  rewrapDekWithPassphrase,
+  rewrapDekWithPassword,
   encryptVaultSecret,
   decryptVaultSecret,
   parseKeyWrap,
@@ -26,11 +26,11 @@ import {
 } from './recovery'
 
 describe('vault crypto', () => {
-  it('creates and unlocks a random DEK wrapped by passphrase', async () => {
-    const created = await createVaultCrypto('unified-passphrase-ok')
+  it('creates and unlocks a random DEK wrapped by password', async () => {
+    const created = await createVaultCrypto('unified-password-ok')
     expect(created.vaultCrypto.version).toBe(2)
     const unlocked = await unlockVaultCrypto(
-      'unified-passphrase-ok',
+      'unified-password-ok',
       created.vaultCrypto
     )
     const payload = await encryptVaultSecret('hello-v2', unlocked.dek)
@@ -39,10 +39,10 @@ describe('vault crypto', () => {
     expect(unlocked.opaquePassword).toBe(created.opaquePassword)
   }, 90_000)
 
-  it('rewraps DEK under a new passphrase without changing content key', async () => {
+  it('rewraps DEK under a new password without changing content key', async () => {
     const created = await createVaultCrypto('original-pass-phrase')
     const payload = await encryptVaultSecret('keep-me', created.dek)
-    const rewrapped = await rewrapDekWithPassphrase(
+    const rewrapped = await rewrapDekWithPassword(
       created.dek,
       'brand-new-pass-phrase'
     )
@@ -66,7 +66,7 @@ describe('vault crypto', () => {
   }, 90_000)
 
   it('wraps DEK with recipient secret including full argon2 params', async () => {
-    const created = await createVaultCrypto('owner-passphrase-x')
+    const created = await createVaultCrypto('owner-password-x')
     const wrap = await wrapDekWithSecret(created.dek, 'recipient-secret')
     expect(wrap.kdf).toBe('argon2id')
     expect(wrap.memory).toBeDefined()
@@ -93,9 +93,9 @@ describe('vault crypto', () => {
   })
 
   it('rejects weakened Argon2 params on unlock', async () => {
-    const created = await createVaultCrypto('param-check-passphrase')
+    const created = await createVaultCrypto('param-check-password')
     await expect(
-      unlockVaultCrypto('param-check-passphrase', {
+      unlockVaultCrypto('param-check-password', {
         ...created.vaultCrypto,
         memory: 1024,
       })
@@ -128,7 +128,7 @@ describe('vault crypto', () => {
   }, 90_000)
 
   it('validates KeyWrap JSON shape', async () => {
-    const created = await createVaultCrypto('wrap-parse-passphrase')
+    const created = await createVaultCrypto('wrap-parse-password')
     const wrap = await wrapDekWithSecret(created.dek, 'recipient-secret')
     const ok = parseKeyWrap(serializeKeyWrap(wrap))
     expect(ok.kdf).toBe('argon2id')

@@ -1,6 +1,6 @@
 import { argon2id, argon2idAsync } from '@noble/hashes/argon2'
 import { bytesToBase64, base64ToBytes } from './encoding'
-import { preparePassphraseForKdf } from './passphrase'
+import { preparePasswordForKdf } from './password'
 
 export const ARGON2_MEMORY_KIB = 65536
 export const ARGON2_ITERATIONS = 3
@@ -16,7 +16,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 }
 
 /**
- * Stretch passphrase to raw bytes (Argon2id). Used for v2 HKDF root.
+ * Stretch password to raw bytes (Argon2id). Used for v2 HKDF root.
  *
  * Synchronous: runs the full memory-hard computation (64 MiB / t=3 / p=4)
  * on the calling thread with no yielding, which blocks the main thread for
@@ -31,7 +31,7 @@ export function deriveStretchedKeyBytes(
   salt: Uint8Array
 ): Uint8Array {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   )
   return new Uint8Array(
     argon2id(passwordBytes, salt, {
@@ -65,7 +65,7 @@ export async function deriveStretchedKeyBytesAsync(
   salt: Uint8Array
 ): Promise<Uint8Array> {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   )
   return new Uint8Array(
     await argon2idAsync(passwordBytes, salt, {
@@ -79,7 +79,7 @@ export async function deriveStretchedKeyBytesAsync(
 
 /**
  * Injectable strategy for computing the Argon2id-stretched key. The
- * `vault.ts` passphrase functions default to `deriveStretchedKeyBytesAsync`
+ * `vault.ts` password functions default to `deriveStretchedKeyBytesAsync`
  * (in-process) but accept an override — pass one backed by a Web Worker
  * from browser code to keep the UI thread responsive during derivation.
  */

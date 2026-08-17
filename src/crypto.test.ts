@@ -7,7 +7,7 @@ import {
 } from './vault'
 
 describe('vault crypto', () => {
-  it('encrypts and decrypts with the same passphrase-unlocked DEK', async () => {
+  it('encrypts and decrypts with the same password-unlocked DEK', async () => {
     const password = 'correct-horse-battery-staple'
     const created = await createVaultCrypto(password)
     const secret = 'Beneficiary instructions for 2030'
@@ -17,10 +17,10 @@ describe('vault crypto', () => {
     expect(decrypted).toBe(secret)
   }, 90_000)
 
-  it('fails decryption with wrong passphrase-derived key', async () => {
-    const created = await createVaultCrypto('alpha-passphrase')
+  it('fails decryption with wrong password-derived key', async () => {
+    const created = await createVaultCrypto('alpha-password')
     const encrypted = await encryptVaultSecret('payload', created.dek)
-    const other = await createVaultCrypto('beta-passphrase')
+    const other = await createVaultCrypto('beta-password')
     await expect(decryptVaultSecret(encrypted, other.dek)).rejects.toThrow()
   }, 90_000)
 })

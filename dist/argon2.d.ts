@@ -4,7 +4,7 @@ declare const ARGON2_PARALLELISM = 4;
 declare const ARGON2_KEY_LENGTH = 32;
 declare const ARGON2_SALT_LENGTH = 16;
 /**
- * Stretch passphrase to raw bytes (Argon2id). Used for v2 HKDF root.
+ * Stretch password to raw bytes (Argon2id). Used for v2 HKDF root.
  *
  * Synchronous: runs the full memory-hard computation (64 MiB / t=3 / p=4)
  * on the calling thread with no yielding, which blocks the main thread for
@@ -35,7 +35,7 @@ declare function deriveStretchedKeyBytes(password: string, salt: Uint8Array): Ui
 declare function deriveStretchedKeyBytesAsync(password: string, salt: Uint8Array): Promise<Uint8Array>;
 /**
  * Injectable strategy for computing the Argon2id-stretched key. The
- * `vault.ts` passphrase functions default to `deriveStretchedKeyBytesAsync`
+ * `vault.ts` password functions default to `deriveStretchedKeyBytesAsync`
  * (in-process) but accept an override — pass one backed by a Web Worker
  * from browser code to keep the UI thread responsive during derivation.
  */

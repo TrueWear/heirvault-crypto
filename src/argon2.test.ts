@@ -46,10 +46,10 @@ describe('argon2', () => {
     expect(Array.from(a)).toEqual(Array.from(b))
   }, 90_000)
 
-  it('derives different keys for different passphrases', () => {
+  it('derives different keys for different passwords', () => {
     const salt = randomSaltArgon2()
-    const a = deriveStretchedKeyBytes('alpha-passphrase', salt)
-    const b = deriveStretchedKeyBytes('beta-passphrase', salt)
+    const a = deriveStretchedKeyBytes('alpha-password', salt)
+    const b = deriveStretchedKeyBytes('beta-password', salt)
     expect(Array.from(a)).not.toEqual(Array.from(b))
   }, 90_000)
 

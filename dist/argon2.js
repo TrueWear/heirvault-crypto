@@ -28,16 +28,16 @@ function base64ToBytes(base64) {
   return bytes;
 }
 
-// src/passphrase.ts
-var PASSPHRASE_HARD_MAX_BYTES = 1024;
-function normalizePassphrase(passphrase) {
-  return passphrase.normalize("NFC");
+// src/password.ts
+var PASSWORD_HARD_MAX_BYTES = 1024;
+function normalizePassword(password) {
+  return password.normalize("NFC");
 }
-function preparePassphraseForKdf(passphrase) {
-  const normalized = normalizePassphrase(passphrase);
+function preparePasswordForKdf(password) {
+  const normalized = normalizePassword(password);
   const byteLength = new TextEncoder().encode(normalized).byteLength;
-  if (byteLength > PASSPHRASE_HARD_MAX_BYTES) {
-    throw new Error("Passphrase is too long");
+  if (byteLength > PASSWORD_HARD_MAX_BYTES) {
+    throw new Error("Password is too long");
   }
   return normalized;
 }
@@ -56,7 +56,7 @@ function toArrayBuffer(bytes) {
 }
 function deriveStretchedKeyBytes(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     argon2id(passwordBytes, salt, {
@@ -69,7 +69,7 @@ function deriveStretchedKeyBytes(password, salt) {
 }
 async function deriveStretchedKeyBytesAsync(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     await argon2idAsync(passwordBytes, salt, {

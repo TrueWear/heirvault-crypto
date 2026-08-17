@@ -5,7 +5,7 @@ Thanks for helping improve HeirVault's live vault crypto.
 ## Before you start
 
 - Keep changes focused on this library. Product handoff, claim, session, and server code belong in the private HeirVault app, not here.
-- Do not weaken passphrase policy or Argon2 parameters without a clear security rationale and tests.
+- Do not weaken password policy or Argon2 parameters without a clear security rationale and tests.
 - Match existing style: TypeScript strict, Vitest, no unnecessary deps.
 
 ## Setup

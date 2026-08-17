@@ -133,42 +133,42 @@ function deviceWrapAad(parts) {
 // src/argon2.ts
 import { argon2id, argon2idAsync } from "@noble/hashes/argon2";
 
-// src/passphrase.ts
-var PASSPHRASE_MIN_LENGTH = 12;
-var PASSPHRASE_MAX_LENGTH = 128;
-var PASSPHRASE_HARD_MAX_BYTES = 1024;
+// src/password.ts
+var PASSWORD_MIN_LENGTH = 12;
+var PASSWORD_MAX_LENGTH = 128;
+var PASSWORD_HARD_MAX_BYTES = 1024;
 var DISALLOWED_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/u;
-function normalizePassphrase(passphrase) {
-  return passphrase.normalize("NFC");
+function normalizePassword(password) {
+  return password.normalize("NFC");
 }
-function containsDisallowedPassphraseChars(passphrase) {
-  return DISALLOWED_CONTROL_CHARS.test(passphrase);
+function containsDisallowedPasswordChars(password) {
+  return DISALLOWED_CONTROL_CHARS.test(password);
 }
-function getPassphrasePolicyError(passphrase) {
-  const normalized = normalizePassphrase(passphrase);
-  if (normalized.length < PASSPHRASE_MIN_LENGTH) return "too_short";
-  if (normalized.length > PASSPHRASE_MAX_LENGTH) return "too_long";
-  if (containsDisallowedPassphraseChars(normalized)) return "control_chars";
+function getPasswordPolicyError(password) {
+  const normalized = normalizePassword(password);
+  if (normalized.length < PASSWORD_MIN_LENGTH) return "too_short";
+  if (normalized.length > PASSWORD_MAX_LENGTH) return "too_long";
+  if (containsDisallowedPasswordChars(normalized)) return "control_chars";
   return null;
 }
-function passphrasePolicyErrorMessage(code) {
+function passwordPolicyErrorMessage(code) {
   switch (code) {
     case "too_short":
-      return `Passphrase must be at least ${PASSPHRASE_MIN_LENGTH} characters`;
+      return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
     case "too_long":
-      return `Passphrase must be at most ${PASSPHRASE_MAX_LENGTH} characters`;
+      return `Password must be at most ${PASSWORD_MAX_LENGTH} characters`;
     case "control_chars":
-      return "Passphrase cannot include control characters";
+      return "Password cannot include control characters";
   }
 }
-function isPassphrasePolicySatisfied(passphrase) {
-  return getPassphrasePolicyError(passphrase) === null;
+function isPasswordPolicySatisfied(password) {
+  return getPasswordPolicyError(password) === null;
 }
-function preparePassphraseForKdf(passphrase) {
-  const normalized = normalizePassphrase(passphrase);
+function preparePasswordForKdf(password) {
+  const normalized = normalizePassword(password);
   const byteLength = new TextEncoder().encode(normalized).byteLength;
-  if (byteLength > PASSPHRASE_HARD_MAX_BYTES) {
-    throw new Error("Passphrase is too long");
+  if (byteLength > PASSWORD_HARD_MAX_BYTES) {
+    throw new Error("Password is too long");
   }
   return normalized;
 }
@@ -187,7 +187,7 @@ function toArrayBuffer2(bytes) {
 }
 function deriveStretchedKeyBytes(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     argon2id(passwordBytes, salt, {
@@ -200,7 +200,7 @@ function deriveStretchedKeyBytes(password, salt) {
 }
 async function deriveStretchedKeyBytesAsync(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     await argon2idAsync(passwordBytes, salt, {
@@ -241,6 +241,7 @@ function deserializeArgon2Salt(encoded) {
 var HKDF_INFO_AUTH = "heirvault-auth-v1";
 var HKDF_INFO_VAULT_KEK = "heirvault-vault-kek-v1";
 var HKDF_INFO_DEVICE = "heirvault-device-wrap-v1";
+var HKDF_INFO_RECOVERY_AUTH = "heirvault-recovery-auth-v1";
 function toArrayBuffer3(bytes) {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -260,6 +261,26 @@ async function hkdfExpand(ikm, info, length = 32) {
       name: "HKDF",
       hash: "SHA-256",
       salt: new ArrayBuffer(0),
+      info: toArrayBuffer3(new TextEncoder().encode(info))
+    },
+    baseKey,
+    length * 8
+  );
+  return new Uint8Array(bits);
+}
+async function hkdfExtractExpand(ikm, salt, info, length = 32) {
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer3(ikm),
+    "HKDF",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: toArrayBuffer3(salt),
       info: toArrayBuffer3(new TextEncoder().encode(info))
     },
     baseKey,
@@ -322,10 +343,10 @@ async function unwrapDekWithKek(wrap, kek, options) {
   const rawB64 = await decryptUtf8(wrap, kek, options);
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function createVaultCrypto(passphrase, options) {
+async function createVaultCrypto(password, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   const accountSalt = options?.accountSaltB64 ? deserializeArgon2Salt(options.accountSaltB64) : randomSaltArgon2();
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(password, accountSalt);
   const vaultKek = await deriveVaultKek(stretchedKey);
   const opaquePassword = await deriveOpaquePassword(stretchedKey);
   const dek = await generateVaultDek();
@@ -365,26 +386,26 @@ function assertSupportedArgon2Params(cryptoBlob) {
     throw new Error("Unsupported Argon2 parallelism parameter");
   }
 }
-async function unlockVaultCrypto(passphrase, cryptoBlob, options) {
+async function unlockVaultCrypto(password, cryptoBlob, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   assertSupportedArgon2Params(cryptoBlob);
   const accountSalt = deserializeArgon2Salt(cryptoBlob.accountSalt);
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(password, accountSalt);
   const vaultKek = await deriveVaultKek(stretchedKey);
   const opaquePassword = await deriveOpaquePassword(stretchedKey);
   const dek = await unwrapDekWithKek(cryptoBlob.vaultKeyWrap, vaultKek);
   return { dek, opaquePassword, vaultKek };
 }
-async function deriveOpaquePasswordFromPassphrase(passphrase, accountSaltB64, options) {
+async function deriveOpaquePasswordForLogin(password, accountSaltB64, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   const accountSalt = deserializeArgon2Salt(accountSaltB64);
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(password, accountSalt);
   return deriveOpaquePassword(stretchedKey);
 }
-async function rewrapDekWithPassphrase(dek, newPassphrase, options) {
+async function rewrapDekWithPassword(dek, newPassword, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   const accountSalt = randomSaltArgon2();
-  const stretchedKey = await deriveStretchedKey(newPassphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(newPassword, accountSalt);
   const vaultKek = await deriveVaultKek(stretchedKey);
   const opaquePassword = await deriveOpaquePassword(stretchedKey);
   const wrap = await wrapDekWithKek(dek, vaultKek);
@@ -425,6 +446,9 @@ function serializeKeyWrap(wrap) {
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
+function isPositiveInteger(value) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
 function parseKeyWrap(raw) {
   let parsed;
   try {
@@ -436,13 +460,13 @@ function parseKeyWrap(raw) {
     throw new Error("Invalid key wrap shape");
   }
   const wrap = parsed;
-  if (!isNonEmptyString(wrap.salt) || typeof wrap.iterations !== "number" || !Number.isFinite(wrap.iterations) || wrap.kdf !== "argon2id" || !isNonEmptyString(wrap.ciphertext) || !isNonEmptyString(wrap.iv)) {
+  if (!isNonEmptyString(wrap.salt) || !isPositiveInteger(wrap.iterations) || wrap.kdf !== "argon2id" || !isNonEmptyString(wrap.ciphertext) || !isNonEmptyString(wrap.iv)) {
     throw new Error("Invalid key wrap fields");
   }
-  if (wrap.memory !== void 0 && (typeof wrap.memory !== "number" || !Number.isFinite(wrap.memory))) {
+  if (wrap.memory !== void 0 && !isPositiveInteger(wrap.memory)) {
     throw new Error("Invalid key wrap memory");
   }
-  if (wrap.parallelism !== void 0 && (typeof wrap.parallelism !== "number" || !Number.isFinite(wrap.parallelism))) {
+  if (wrap.parallelism !== void 0 && !isPositiveInteger(wrap.parallelism)) {
     throw new Error("Invalid key wrap parallelism");
   }
   return {
@@ -477,11 +501,11 @@ async function unwrapDekWithSecret(wrap, secret) {
   );
   return unwrapDekWithKek({ ciphertext: wrap.ciphertext, iv: wrap.iv }, kek);
 }
-async function encryptVaultSecret(plaintext, vaultKey) {
-  return encryptUtf8(plaintext, vaultKey);
+async function encryptVaultSecret(plaintext, vaultKey, options) {
+  return encryptUtf8(plaintext, vaultKey, options);
 }
-async function decryptVaultSecret(payload, vaultKey) {
-  return decryptUtf8(payload, vaultKey);
+async function decryptVaultSecret(payload, vaultKey, options) {
+  return decryptUtf8(payload, vaultKey, options);
 }
 
 // src/recovery.ts
@@ -496,6 +520,32 @@ function normalizeRecoveryPhrase(phrase) {
 }
 function isValidRecoveryPhrase(phrase) {
   return validateMnemonic(normalizeRecoveryPhrase(phrase), wordlist);
+}
+function assertGeneratedRecoveryPhrase(phrase) {
+  if (!isValidRecoveryPhrase(phrase)) {
+    throw new Error("Recovery phrase is not a valid BIP39 mnemonic");
+  }
+}
+var RECOVERY_SALT_LENGTH = 16;
+function randomRecoverySalt() {
+  return bytesToBase64(crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_LENGTH)));
+}
+function deserializeRecoverySalt(encoded) {
+  const salt = base64ToBytes(encoded);
+  if (salt.length !== RECOVERY_SALT_LENGTH) {
+    throw new Error(`Invalid recovery salt length: ${salt.length}`);
+  }
+  return salt;
+}
+async function deriveRecoveryOpaquePassword(phrase, recoverySaltB64) {
+  assertGeneratedRecoveryPhrase(phrase);
+  const ikm = new TextEncoder().encode(normalizeRecoveryPhrase(phrase));
+  const authBytes = await hkdfExtractExpand(
+    ikm,
+    deserializeRecoverySalt(recoverySaltB64),
+    HKDF_INFO_RECOVERY_AUTH
+  );
+  return bytesToBase64(authBytes);
 }
 async function wrapDekWithRecoveryPhrase(dek, phrase, deriveStretchedKey) {
   const salt = randomSaltArgon2();
@@ -524,22 +574,36 @@ async function unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey) {
   );
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+async function unlockDekWithRecoveryDetailed(phrase, wrap, deriveStretchedKey) {
   assertSupportedArgon2Params(wrap);
   const salt = deserializeArgon2Salt(wrap.salt);
   const normalized = normalizeRecoveryPhrase(phrase);
   try {
-    return await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey);
+    return {
+      dek: await unlockWithPhrase(normalized, wrap, salt, deriveStretchedKey),
+      usedLegacyRawPhrase: false
+    };
   } catch (normalizedError) {
     if (phrase === normalized) {
       throw normalizedError;
     }
     try {
-      return await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey);
+      return {
+        dek: await unlockWithPhrase(phrase, wrap, salt, deriveStretchedKey),
+        usedLegacyRawPhrase: true
+      };
     } catch {
       throw normalizedError;
     }
   }
+}
+async function unlockDekWithRecovery(phrase, wrap, deriveStretchedKey) {
+  const { dek } = await unlockDekWithRecoveryDetailed(
+    phrase,
+    wrap,
+    deriveStretchedKey
+  );
+  return dek;
 }
 
 // src/vault-identity.ts
@@ -550,7 +614,13 @@ function vaultIdentityAad(vaultId) {
 }
 function buildDekProofMessage(parts) {
   return JSON.stringify([
-    "heirvault-dek-proof-v1",
+    // v2 is the JSON-array encoding. v1 was pipe-joined, and kept its tag
+    // when the encoding changed -- so a v1 verifier and a v2 signer produced
+    // different messages under the same name and simply failed to agree.
+    // Nothing persists a proof (challenges are single-use with a 2 minute
+    // TTL), so the tag can move without a migration; keep it in step with
+    // the encoding from here on.
+    "heirvault-dek-proof-v2",
     parts.purpose,
     parts.vaultId,
     parts.challengeId,
@@ -612,27 +682,32 @@ export {
   ARGON2_SALT_LENGTH,
   HKDF_INFO_AUTH,
   HKDF_INFO_DEVICE,
+  HKDF_INFO_RECOVERY_AUTH,
   HKDF_INFO_VAULT_KEK,
-  PASSPHRASE_HARD_MAX_BYTES,
-  PASSPHRASE_MAX_LENGTH,
-  PASSPHRASE_MIN_LENGTH,
+  PASSWORD_HARD_MAX_BYTES,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  RECOVERY_SALT_LENGTH,
+  assertGeneratedRecoveryPhrase,
   assertSupportedArgon2Params,
   base64ToBytes,
   buildDekProofMessage,
   bytesToBase64,
-  containsDisallowedPassphraseChars,
+  containsDisallowedPasswordChars,
   createVaultCrypto,
   decryptBinary,
   decryptUtf8,
   decryptVaultSecret,
   deriveOpaquePassword,
-  deriveOpaquePasswordFromPassphrase,
+  deriveOpaquePasswordForLogin,
+  deriveRecoveryOpaquePassword,
   deriveStretchedKeyBytes,
   deriveStretchedKeyBytesAsync,
   deriveVaultKek,
   deriveVaultKeyArgon2,
   deserializeArgon2Salt,
   deserializeKeyBytes,
+  deserializeRecoverySalt,
   deviceWrapAad,
   encryptBinary,
   encryptUtf8,
@@ -641,19 +716,21 @@ export {
   generateRecoveryPhrase,
   generateVaultDek,
   generateVaultIdentity,
-  getPassphrasePolicyError,
+  getPasswordPolicyError,
   hkdfExpand,
+  hkdfExtractExpand,
   importDekFromRaw,
-  isPassphrasePolicySatisfied,
+  isPasswordPolicySatisfied,
   isValidRecoveryPhrase,
-  normalizePassphrase,
+  normalizePassword,
   normalizeRecoveryPhrase,
   parseKeyWrap,
   parseVaultCrypto,
-  passphrasePolicyErrorMessage,
-  preparePassphraseForKdf,
+  passwordPolicyErrorMessage,
+  preparePasswordForKdf,
+  randomRecoverySalt,
   randomSaltArgon2,
-  rewrapDekWithPassphrase,
+  rewrapDekWithPassword,
   serializeArgon2Salt,
   serializeKeyBytes,
   serializeKeyWrap,
@@ -661,6 +738,7 @@ export {
   signDekChallenge,
   stringToUtf8Bytes,
   unlockDekWithRecovery,
+  unlockDekWithRecoveryDetailed,
   unlockVaultCrypto,
   unwrapDekWithKek,
   unwrapDekWithSecret,

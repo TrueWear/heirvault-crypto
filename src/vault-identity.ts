@@ -76,7 +76,13 @@ export function buildDekProofMessage(parts: {
   nonce: string
 }): string {
   return JSON.stringify([
-    'heirvault-dek-proof-v1',
+    // v2 is the JSON-array encoding. v1 was pipe-joined, and kept its tag
+    // when the encoding changed -- so a v1 verifier and a v2 signer produced
+    // different messages under the same name and simply failed to agree.
+    // Nothing persists a proof (challenges are single-use with a 2 minute
+    // TTL), so the tag can move without a migration; keep it in step with
+    // the encoding from here on.
+    'heirvault-dek-proof-v2',
     parts.purpose,
     parts.vaultId,
     parts.challengeId,
