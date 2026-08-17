@@ -8,7 +8,7 @@ Please include a clear description, steps to reproduce, and impact on the live v
 
 ## Scope
 
-In scope: cryptographic correctness and implementation bugs in `@heirvault/crypto` (encoding, AES-GCM, Argon2id, HKDF, passphrase prep, vault wraps, recovery wraps).
+In scope: cryptographic correctness and implementation bugs in `@heirvault/crypto` (encoding, AES-GCM, Argon2id, HKDF, password prep, vault wraps, recovery wraps).
 
 Out of scope for this repo: HeirVault product features (assisted delivery, claim flows, server escrow), account authentication, and infrastructure.
 

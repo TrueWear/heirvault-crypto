@@ -7,7 +7,7 @@ export default defineConfig({
     'src/aes-gcm.ts',
     'src/argon2.ts',
     'src/hkdf.ts',
-    'src/passphrase.ts',
+    'src/password.ts',
     'src/vault.ts',
     'src/recovery.ts',
     'src/vault-identity.ts',

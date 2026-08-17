@@ -14,7 +14,7 @@ import { unlockVaultCrypto, parseVaultCrypto, type VaultCrypto } from './vault'
  * code. This fixture is the one thing in the suite that only exercises the
  * read side, against output the write side is not involved in producing.
  *
- * Generated with passphrase 'heirvault-golden-fixture-do-not-use-for-real-vaults'
+ * Generated with password 'heirvault-golden-fixture-do-not-use-for-real-vaults'
  * and the fixed salt 0x00..0x0f via a live run of createVaultCrypto, then
  * independently re-verified by unlocking this exact blob before being
  * committed here. Do not regenerate this fixture to "fix" a failing test —
@@ -24,7 +24,7 @@ import { unlockVaultCrypto, parseVaultCrypto, type VaultCrypto } from './vault'
  * add a new fixture under a new `version`/`cryptoVersion` rather than
  * replacing this one, so both remain covered.
  */
-const GOLDEN_PASSPHRASE = 'heirvault-golden-fixture-do-not-use-for-real-vaults'
+const GOLDEN_PASSWORD = 'heirvault-golden-fixture-do-not-use-for-real-vaults'
 
 const GOLDEN_VAULT_CRYPTO_JSON =
   '{"version":2,"accountSalt":"AAECAwQFBgcICQoLDA0ODw==","kdf":"argon2id","memory":65536,"iterations":3,"parallelism":4,"vaultKeyWrap":{"ciphertext":"7v67pL/i+Ad6oYwsiHTe7ETy8v8wkyi5qVtbch7JqQywDKtscIDEkYUpn9kaG5m3O38ay80E4pSyWLrU","iv":"Cq1oKv5JerHS5HEA"}}'
@@ -51,14 +51,14 @@ describe('vault crypto golden fixture', () => {
 
   it('unwraps the committed blob to the exact DEK it was created with', async () => {
     const vaultCrypto = parseVaultCrypto(GOLDEN_VAULT_CRYPTO_JSON)
-    const { dek } = await unlockVaultCrypto(GOLDEN_PASSPHRASE, vaultCrypto)
+    const { dek } = await unlockVaultCrypto(GOLDEN_PASSWORD, vaultCrypto)
     expect(await dekHex(dek)).toBe(GOLDEN_EXPECTED_DEK_HEX)
   }, 90_000)
 
-  it('rejects the committed blob under the wrong passphrase', async () => {
+  it('rejects the committed blob under the wrong password', async () => {
     const vaultCrypto = parseVaultCrypto(GOLDEN_VAULT_CRYPTO_JSON)
     await expect(
-      unlockVaultCrypto('not-the-golden-passphrase', vaultCrypto)
+      unlockVaultCrypto('not-the-golden-password', vaultCrypto)
     ).rejects.toThrow()
   }, 90_000)
 })

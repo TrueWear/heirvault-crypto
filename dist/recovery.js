@@ -87,16 +87,16 @@ async function decryptUtf8(payload, key, options) {
 // src/argon2.ts
 import { argon2id, argon2idAsync } from "@noble/hashes/argon2";
 
-// src/passphrase.ts
-var PASSPHRASE_HARD_MAX_BYTES = 1024;
-function normalizePassphrase(passphrase) {
-  return passphrase.normalize("NFC");
+// src/password.ts
+var PASSWORD_HARD_MAX_BYTES = 1024;
+function normalizePassword(password) {
+  return password.normalize("NFC");
 }
-function preparePassphraseForKdf(passphrase) {
-  const normalized = normalizePassphrase(passphrase);
+function preparePasswordForKdf(password) {
+  const normalized = normalizePassword(password);
   const byteLength = new TextEncoder().encode(normalized).byteLength;
-  if (byteLength > PASSPHRASE_HARD_MAX_BYTES) {
-    throw new Error("Passphrase is too long");
+  if (byteLength > PASSWORD_HARD_MAX_BYTES) {
+    throw new Error("Password is too long");
   }
   return normalized;
 }
@@ -115,7 +115,7 @@ function toArrayBuffer2(bytes) {
 }
 async function deriveStretchedKeyBytesAsync(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     await argon2idAsync(passwordBytes, salt, {

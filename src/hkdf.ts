@@ -13,7 +13,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 }
 
 /**
- * HKDF-SHA-256 expand from an already-extracted IKM (stretched passphrase).
+ * HKDF-SHA-256 expand from an already-extracted IKM (stretched password).
  * Salt is empty; domain separation uses the info string.
  */
 export async function hkdfExpand(

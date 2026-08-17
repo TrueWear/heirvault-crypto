@@ -15,7 +15,7 @@ import { deriveOpaquePassword, deriveVaultKek } from './hkdf'
 
 export type KdfType = 'argon2id'
 
-/** Wrap of a random DEK under a KEK (passphrase, recovery, recipient, or device). */
+/** Wrap of a random DEK under a KEK (password, recovery, recipient, or device). */
 export type KeyWrap = {
   salt: string
   iterations: number
@@ -92,7 +92,7 @@ export async function unwrapDekWithKek(
   return importDekFromRaw(base64ToBytes(rawB64))
 }
 
-export type PassphraseDerivedMaterial = {
+export type PasswordDerivedMaterial = {
   accountSalt: Uint8Array
   stretchedKey: Uint8Array
   vaultKek: CryptoKey
@@ -101,20 +101,20 @@ export type PassphraseDerivedMaterial = {
   dek: VaultDek
 }
 
-/** Create a new vault: random DEK + passphrase wrap + OPAQUE password material. */
+/** Create a new vault: random DEK + password wrap + OPAQUE password material. */
 export async function createVaultCrypto(
-  passphrase: string,
+  password: string,
   options?: {
     accountSaltB64?: string
     deriveStretchedKey?: StretchedKeyDeriver
   }
-): Promise<PassphraseDerivedMaterial> {
+): Promise<PasswordDerivedMaterial> {
   const deriveStretchedKey =
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   const accountSalt = options?.accountSaltB64
     ? deserializeArgon2Salt(options.accountSaltB64)
     : randomSaltArgon2()
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(password, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
   const opaquePassword = await deriveOpaquePassword(stretchedKey)
   const dek = await generateVaultDek()
@@ -185,9 +185,9 @@ export function assertSupportedArgon2Params(cryptoBlob: {
   }
 }
 
-/** Unlock vault DEK from passphrase + stored crypto blob. */
+/** Unlock vault DEK from password + stored crypto blob. */
 export async function unlockVaultCrypto(
-  passphrase: string,
+  password: string,
   cryptoBlob: VaultCrypto,
   options?: { deriveStretchedKey?: StretchedKeyDeriver }
 ): Promise<{ dek: VaultDek; opaquePassword: string; vaultKek: CryptoKey }> {
@@ -195,7 +195,7 @@ export async function unlockVaultCrypto(
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   assertSupportedArgon2Params(cryptoBlob)
   const accountSalt = deserializeArgon2Salt(cryptoBlob.accountSalt)
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(password, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
   const opaquePassword = await deriveOpaquePassword(stretchedKey)
   const dek = await unwrapDekWithKek(cryptoBlob.vaultKeyWrap, vaultKek)
@@ -203,28 +203,28 @@ export async function unlockVaultCrypto(
 }
 
 /** Derive OPAQUE password only (login without unwrap). */
-export async function deriveOpaquePasswordFromPassphrase(
-  passphrase: string,
+export async function deriveOpaquePasswordForLogin(
+  password: string,
   accountSaltB64: string,
   options?: { deriveStretchedKey?: StretchedKeyDeriver }
 ): Promise<string> {
   const deriveStretchedKey =
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   const accountSalt = deserializeArgon2Salt(accountSaltB64)
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(password, accountSalt)
   return deriveOpaquePassword(stretchedKey)
 }
 
-/** Rewrap DEK under a new passphrase (passphrase change / recovery reset). */
-export async function rewrapDekWithPassphrase(
+/** Rewrap DEK under a new password (password change / recovery reset). */
+export async function rewrapDekWithPassword(
   dek: VaultDek,
-  newPassphrase: string,
+  newPassword: string,
   options?: { deriveStretchedKey?: StretchedKeyDeriver }
-): Promise<PassphraseDerivedMaterial> {
+): Promise<PasswordDerivedMaterial> {
   const deriveStretchedKey =
     options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync
   const accountSalt = randomSaltArgon2()
-  const stretchedKey = await deriveStretchedKey(newPassphrase, accountSalt)
+  const stretchedKey = await deriveStretchedKey(newPassword, accountSalt)
   const vaultKek = await deriveVaultKek(stretchedKey)
   const opaquePassword = await deriveOpaquePassword(stretchedKey)
   const wrap = await wrapDekWithKek(dek, vaultKek)

@@ -2,7 +2,7 @@ import { EncryptedPayload } from './aes-gcm.js';
 import { StretchedKeyDeriver } from './argon2.js';
 
 type KdfType = 'argon2id';
-/** Wrap of a random DEK under a KEK (passphrase, recovery, recipient, or device). */
+/** Wrap of a random DEK under a KEK (password, recovery, recipient, or device). */
 type KeyWrap = {
     salt: string;
     iterations: number;
@@ -35,7 +35,7 @@ declare function wrapDekWithKek(dek: VaultDek, kek: CryptoKey, options?: {
 declare function unwrapDekWithKek(wrap: EncryptedPayload, kek: CryptoKey, options?: {
     additionalData?: string;
 }): Promise<VaultDek>;
-type PassphraseDerivedMaterial = {
+type PasswordDerivedMaterial = {
     accountSalt: Uint8Array;
     stretchedKey: Uint8Array;
     vaultKek: CryptoKey;
@@ -43,11 +43,11 @@ type PassphraseDerivedMaterial = {
     vaultCrypto: VaultCrypto;
     dek: VaultDek;
 };
-/** Create a new vault: random DEK + passphrase wrap + OPAQUE password material. */
-declare function createVaultCrypto(passphrase: string, options?: {
+/** Create a new vault: random DEK + password wrap + OPAQUE password material. */
+declare function createVaultCrypto(password: string, options?: {
     accountSaltB64?: string;
     deriveStretchedKey?: StretchedKeyDeriver;
-}): Promise<PassphraseDerivedMaterial>;
+}): Promise<PasswordDerivedMaterial>;
 /**
  * Reject unknown or weakened Argon2 suites.
  *
@@ -69,8 +69,8 @@ declare function assertSupportedArgon2Params(cryptoBlob: {
     iterations?: number;
     parallelism?: number;
 }): void;
-/** Unlock vault DEK from passphrase + stored crypto blob. */
-declare function unlockVaultCrypto(passphrase: string, cryptoBlob: VaultCrypto, options?: {
+/** Unlock vault DEK from password + stored crypto blob. */
+declare function unlockVaultCrypto(password: string, cryptoBlob: VaultCrypto, options?: {
     deriveStretchedKey?: StretchedKeyDeriver;
 }): Promise<{
     dek: VaultDek;
@@ -78,13 +78,13 @@ declare function unlockVaultCrypto(passphrase: string, cryptoBlob: VaultCrypto, 
     vaultKek: CryptoKey;
 }>;
 /** Derive OPAQUE password only (login without unwrap). */
-declare function deriveOpaquePasswordFromPassphrase(passphrase: string, accountSaltB64: string, options?: {
+declare function deriveOpaquePasswordForLogin(password: string, accountSaltB64: string, options?: {
     deriveStretchedKey?: StretchedKeyDeriver;
 }): Promise<string>;
-/** Rewrap DEK under a new passphrase (passphrase change / recovery reset). */
-declare function rewrapDekWithPassphrase(dek: VaultDek, newPassphrase: string, options?: {
+/** Rewrap DEK under a new password (password change / recovery reset). */
+declare function rewrapDekWithPassword(dek: VaultDek, newPassword: string, options?: {
     deriveStretchedKey?: StretchedKeyDeriver;
-}): Promise<PassphraseDerivedMaterial>;
+}): Promise<PasswordDerivedMaterial>;
 declare function parseVaultCrypto(encryptedVaultKey: string): VaultCrypto;
 declare function serializeVaultCrypto(crypto: VaultCrypto): string;
 declare function serializeKeyWrap(wrap: KeyWrap): string;
@@ -109,4 +109,4 @@ declare function decryptVaultSecret(payload: EncryptedPayload, vaultKey: CryptoK
     additionalData?: string;
 }): Promise<string>;
 
-export { type KdfType, type KeyWrap, type PassphraseDerivedMaterial, type VaultCrypto, type VaultDek, assertSupportedArgon2Params, createVaultCrypto, decryptVaultSecret, deriveOpaquePasswordFromPassphrase, encryptVaultSecret, exportDekRaw, generateVaultDek, importDekFromRaw, parseKeyWrap, parseVaultCrypto, rewrapDekWithPassphrase, serializeKeyWrap, serializeVaultCrypto, unlockVaultCrypto, unwrapDekWithKek, unwrapDekWithSecret, wrapDekWithKek, wrapDekWithSecret };
+export { type KdfType, type KeyWrap, type PasswordDerivedMaterial, type VaultCrypto, type VaultDek, assertSupportedArgon2Params, createVaultCrypto, decryptVaultSecret, deriveOpaquePasswordForLogin, encryptVaultSecret, exportDekRaw, generateVaultDek, importDekFromRaw, parseKeyWrap, parseVaultCrypto, rewrapDekWithPassword, serializeKeyWrap, serializeVaultCrypto, unlockVaultCrypto, unwrapDekWithKek, unwrapDekWithSecret, wrapDekWithKek, wrapDekWithSecret };

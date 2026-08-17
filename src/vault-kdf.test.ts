@@ -19,10 +19,10 @@ describe('vault KDF', () => {
     expect(plain).toBe('round-trip')
   }, 90_000)
 
-  it('rejects wrong passphrase', async () => {
-    const created = await createVaultCrypto('right-passphrase')
+  it('rejects wrong password', async () => {
+    const created = await createVaultCrypto('right-password')
     await expect(
-      unlockVaultCrypto('wrong-passphrase', created.vaultCrypto)
+      unlockVaultCrypto('wrong-password', created.vaultCrypto)
     ).rejects.toThrow()
   }, 90_000)
 })

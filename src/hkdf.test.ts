@@ -35,7 +35,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 describe('hkdf domain separation', () => {
   it('produces different outputs for auth vs vault-kek infos', async () => {
     const salt = randomSaltArgon2()
-    const stretched = deriveStretchedKeyBytes('test-passphrase-12', salt)
+    const stretched = deriveStretchedKeyBytes('test-password-12', salt)
     const auth = await hkdfExpand(stretched, HKDF_INFO_AUTH)
     const kek = await hkdfExpand(stretched, HKDF_INFO_VAULT_KEK)
     expect(auth).not.toEqual(kek)

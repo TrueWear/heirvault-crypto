@@ -27,8 +27,8 @@ declare const RECOVERY_SALT_LENGTH = 16;
  * Random salt for the recovery auth derivation, base64 for storage/transport.
  *
  * This salt MUST be stored alongside the recovery credential and MUST NOT be
- * derived from the vault's `accountSalt`: `rewrapDekWithPassphrase` mints a
- * fresh `accountSalt` on every passphrase change, which would silently
+ * derived from the vault's `accountSalt`: `rewrapDekWithPassword` mints a
+ * fresh `accountSalt` on every password change, which would silently
  * re-point this derivation at a salt the credential was never created with.
  */
 declare function randomRecoverySalt(): string;

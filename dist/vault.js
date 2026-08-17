@@ -83,16 +83,16 @@ async function decryptUtf8(payload, key, options) {
 // src/argon2.ts
 import { argon2id, argon2idAsync } from "@noble/hashes/argon2";
 
-// src/passphrase.ts
-var PASSPHRASE_HARD_MAX_BYTES = 1024;
-function normalizePassphrase(passphrase) {
-  return passphrase.normalize("NFC");
+// src/password.ts
+var PASSWORD_HARD_MAX_BYTES = 1024;
+function normalizePassword(password) {
+  return password.normalize("NFC");
 }
-function preparePassphraseForKdf(passphrase) {
-  const normalized = normalizePassphrase(passphrase);
+function preparePasswordForKdf(password) {
+  const normalized = normalizePassword(password);
   const byteLength = new TextEncoder().encode(normalized).byteLength;
-  if (byteLength > PASSPHRASE_HARD_MAX_BYTES) {
-    throw new Error("Passphrase is too long");
+  if (byteLength > PASSWORD_HARD_MAX_BYTES) {
+    throw new Error("Password is too long");
   }
   return normalized;
 }
@@ -111,7 +111,7 @@ function toArrayBuffer2(bytes) {
 }
 async function deriveStretchedKeyBytesAsync(password, salt) {
   const passwordBytes = new TextEncoder().encode(
-    preparePassphraseForKdf(password)
+    preparePasswordForKdf(password)
   );
   return new Uint8Array(
     await argon2idAsync(passwordBytes, salt, {
@@ -226,10 +226,10 @@ async function unwrapDekWithKek(wrap, kek, options) {
   const rawB64 = await decryptUtf8(wrap, kek, options);
   return importDekFromRaw(base64ToBytes(rawB64));
 }
-async function createVaultCrypto(passphrase, options) {
+async function createVaultCrypto(password, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   const accountSalt = options?.accountSaltB64 ? deserializeArgon2Salt(options.accountSaltB64) : randomSaltArgon2();
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(password, accountSalt);
   const vaultKek = await deriveVaultKek(stretchedKey);
   const opaquePassword = await deriveOpaquePassword(stretchedKey);
   const dek = await generateVaultDek();
@@ -269,26 +269,26 @@ function assertSupportedArgon2Params(cryptoBlob) {
     throw new Error("Unsupported Argon2 parallelism parameter");
   }
 }
-async function unlockVaultCrypto(passphrase, cryptoBlob, options) {
+async function unlockVaultCrypto(password, cryptoBlob, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   assertSupportedArgon2Params(cryptoBlob);
   const accountSalt = deserializeArgon2Salt(cryptoBlob.accountSalt);
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(password, accountSalt);
   const vaultKek = await deriveVaultKek(stretchedKey);
   const opaquePassword = await deriveOpaquePassword(stretchedKey);
   const dek = await unwrapDekWithKek(cryptoBlob.vaultKeyWrap, vaultKek);
   return { dek, opaquePassword, vaultKek };
 }
-async function deriveOpaquePasswordFromPassphrase(passphrase, accountSaltB64, options) {
+async function deriveOpaquePasswordForLogin(password, accountSaltB64, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   const accountSalt = deserializeArgon2Salt(accountSaltB64);
-  const stretchedKey = await deriveStretchedKey(passphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(password, accountSalt);
   return deriveOpaquePassword(stretchedKey);
 }
-async function rewrapDekWithPassphrase(dek, newPassphrase, options) {
+async function rewrapDekWithPassword(dek, newPassword, options) {
   const deriveStretchedKey = options?.deriveStretchedKey ?? deriveStretchedKeyBytesAsync;
   const accountSalt = randomSaltArgon2();
-  const stretchedKey = await deriveStretchedKey(newPassphrase, accountSalt);
+  const stretchedKey = await deriveStretchedKey(newPassword, accountSalt);
   const vaultKek = await deriveVaultKek(stretchedKey);
   const opaquePassword = await deriveOpaquePassword(stretchedKey);
   const wrap = await wrapDekWithKek(dek, vaultKek);
@@ -394,14 +394,14 @@ export {
   assertSupportedArgon2Params,
   createVaultCrypto,
   decryptVaultSecret,
-  deriveOpaquePasswordFromPassphrase,
+  deriveOpaquePasswordForLogin,
   encryptVaultSecret,
   exportDekRaw,
   generateVaultDek,
   importDekFromRaw,
   parseKeyWrap,
   parseVaultCrypto,
-  rewrapDekWithPassphrase,
+  rewrapDekWithPassword,
   serializeKeyWrap,
   serializeVaultCrypto,
   unlockVaultCrypto,
