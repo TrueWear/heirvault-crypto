@@ -1,5 +1,19 @@
-/** UI / policy minimum for unified and recipient passwords. */
-declare const PASSWORD_MIN_LENGTH = 12;
+/**
+ * UI / policy minimum for unified and recipient passwords.
+ *
+ * Eight, lowered from twelve on 2026-08-22 at the product owner's direction,
+ * to take friction out of sign-up and onboarding.
+ *
+ * Read this before raising or lowering it again. This value is not a login
+ * policy. It is the floor on the input to Argon2id, and the key it derives
+ * wraps the vault DEK, so an attacker holding the database grinds it offline
+ * with no rate limit in the way. `ARGON2_MEMORY_KIB` 65536 with three
+ * iterations buys roughly four orders of magnitude over a fast hash; it does
+ * not rescue a password that is already on a wordlist. Nothing else in the
+ * product compensates: there is no strength meter that blocks, no common
+ * password list, and no composition rule.
+ */
+declare const PASSWORD_MIN_LENGTH = 8;
 /** UI / policy maximum (characters after NFC). */
 declare const PASSWORD_MAX_LENGTH = 128;
 /**

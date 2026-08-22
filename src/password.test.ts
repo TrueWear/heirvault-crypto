@@ -16,6 +16,18 @@ describe('password policy', () => {
     expect(isPasswordPolicySatisfied('p@ss phrase!!')).toBe(true)
   })
 
+  it('accepts exactly the minimum and rejects one below it', () => {
+    // The boundary had no test at all, which is how the constant could move
+    // without anything noticing. It is the floor on the Argon2id input, so it
+    // is the one number here worth pinning in both directions.
+    expect(
+      getPasswordPolicyError('a'.repeat(PASSWORD_MIN_LENGTH))
+    ).toBeNull()
+    expect(
+      getPasswordPolicyError('a'.repeat(PASSWORD_MIN_LENGTH - 1))
+    ).toBe('too_short')
+  })
+
   it('rejects short, long, and control-character passwords', () => {
     expect(getPasswordPolicyError('short')).toBe('too_short')
     expect(
