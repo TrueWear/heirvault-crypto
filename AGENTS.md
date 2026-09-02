@@ -1,3 +1,13 @@
+# TrueWear Account Boundary
+
+The organization policy is
+[`../../../workspaces/engineering-workspace/ACCOUNT_BOUNDARY.md`](../../../workspaces/engineering-workspace/ACCOUNT_BOUNDARY.md).
+Before any commit, push, provider API call, deployment, analytics operation, or
+billing operation, run the matching organization preflight and use its
+TrueWear wrapper. Never use a provider default or a separately managed company
+account. Fail closed when the TrueWear identity and target cannot both be
+verified.
+
 <!-- BEGIN:truewear-multi-repo -->
 
 # One checkout, many repos
