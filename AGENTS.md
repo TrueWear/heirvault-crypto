@@ -2,10 +2,9 @@
 
 # One checkout, many repos
 
-`~/Documents/TrueWear` holds several independent git repos (`heirvault`,
-`heirvault-admin`, `heirvault-crypto`, `stackdeck`, `truewear`, `ziplet`) inside
-one parent repo. Tooling that reports "the" branch often reports the
-**parent's**, which says nothing about the repo you are editing.
+`~/Documents/TrueWear/repos/heirvault` holds the three independent HeirVault
+repositories as siblings. It is not a Git repository and carries no shared
+agent instructions. Always run Git commands inside the repository being edited.
 
 Before designing anything, in the repo you are about to change:
 
