@@ -58,7 +58,12 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match package.json version $pkg_version"
             exit 1
           fi
+      # npm trusted publishing: npm accepts this workflow's GitHub OIDC identity
+      # (the `id-token: write` permission above), so no stored token exists to
+      # expire or leak. The trusted publisher configured on npmjs.com must name
+      # this repository, this workflow file and the `npm-publish` environment.
+      # It needs npm 11.5.1 or newer; Node 22 ships npm 10.
+      - name: Install an npm that supports trusted publishing
+        run: npm install -g 'npm@^11.5.1'
       - name: Publish to npm
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
